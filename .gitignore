@@ -1,0 +1,4 @@
+node_modules/
+test-out/
+*.bak
+.DS_Store

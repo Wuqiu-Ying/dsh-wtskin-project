@@ -1,0 +1,8 @@
+# dsh-wtskin-project bundle patch
+#
+# Mounts the War Thunder skin studio tools into the profile.
+# Install with the DSH plugin manager or:
+#   dsh plugin --profile <profile> add link:<absolute path to this folder>
+- insert:
+    - id: dsh-wtskin-project
+      name: dsh-wtskin-project
