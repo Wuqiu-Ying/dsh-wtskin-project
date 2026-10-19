@@ -1,5 +1,7 @@
 # dsh-wtskin-project
 
+[English](README.en.md) | 中文
+
 **战争雷霆用户涂装工作室**，以 DSH 插件形式发布。把「量 UV → 逐面放角色 → 合成 → 导出 DDS + blk」这套流程变成模型可调用的工具，并内置了四点多边形取点器。
 
 ## 工具

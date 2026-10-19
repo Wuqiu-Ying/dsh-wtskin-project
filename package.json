@@ -5,7 +5,7 @@
   "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "war-thunder", "skin", "camouflage", "uv"],
   "type": "module",
   "main": "lib/index.js",
-  "files": ["lib", "python", "presets", "assets", "cordis.patch.yml", "README.md"],
+  "files": ["lib", "python", "presets", "assets", "cordis.patch.yml", "README.md", "README.en.md"],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
