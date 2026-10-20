@@ -11,5 +11,13 @@
       "patch": "./cordis.patch.yml"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Wuqiu-Ying/dsh-wtskin-project.git"
+  },
+  "homepage": "https://github.com/Wuqiu-Ying/dsh-wtskin-project#readme",
+  "bugs": {
+    "url": "https://github.com/Wuqiu-Ying/dsh-wtskin-project/issues"
+  },
   "license": "MIT"
 }
