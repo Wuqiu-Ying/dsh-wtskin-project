@@ -1,0 +1,183 @@
+/**
+ * End-to-end smoke test for dsh-wtskin-project v2.
+ *
+ *   node tests/smoke.mjs [pythonPath]
+ *
+ * Covers: tool registration, project create, layer add, palette/quad handling,
+ * export, pixel placement (catches the v1 double-scale bug), rotated point
+ * order, v1→v2 migration, picker generation and the /wtskinp command.
+ */
+import { mkdtemp, mkdir, rm, readFile, access, writeFile } from 'node:fs/promises';
+import { readFileSync, rmSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import os from 'node:os';
+import path from 'node:path';
+import { apply } from '../lib/index.js';
+
+const python = process.argv[2] ?? process.env.DSH_PYTHON ?? 'python';
+
+function assert(condition, message) {
+  if (!condition) throw new Error(message);
+}
+
+function makeContext({ browser = false, projectsDir } = {}) {
+  const tools = new Map();
+  const commands = [];
+  const ctx = {
+    tools: {
+      register: (definition) => { tools.set(definition.name, definition); },
+      get: (toolName) => (browser && toolName === 'dsh_browser_open' ? { name: toolName } : undefined),
+      schemas: () => (browser ? [{ name: 'dsh_browser_open' }] : []),
+    },
+    systemPrompt: { section: () => {} },
+    logger: { warn: (...parts) => console.warn('[warn]', ...parts) },
+    effect: (fn) => { fn(); return () => {}; },
+    get: (serviceName) => (serviceName === 'commands'
+      ? { register: (definition) => { commands.push(definition); return () => {}; } }
+      : undefined),
+    agents: { get: () => undefined },
+    workingDirectory: { defaultDirectory: os.tmpdir() },
+  };
+  apply(ctx, { pythonPath: python, projectsDir });
+  return { ctx, tools, commands };
+}
+
+function pixel(file, x, y) {
+  const outJson = path.join(os.tmpdir(), `wtskin-px-${process.pid}-${Date.now()}.json`);
+  const code = [
+    'import sys, json',
+    'from PIL import Image',
+    'im = Image.open(sys.argv[1])',
+    'json.dump(list(im.getpixel((int(sys.argv[2]), int(sys.argv[3])))[:3]), open(sys.argv[4], "w"))',
+  ].join('\n');
+  execFileSync(python, ['-c', code, file, String(x), String(y), outJson], { stdio: 'inherit' });
+  const value = JSON.parse(readFileSync(outJson, 'utf8'));
+  rmSync(outJson, { force: true });
+  return value;
+}
+
+const dir = await mkdtemp(path.join(os.tmpdir(), 'wtskin2-'));
+const charFile = path.join(dir, 'char.png');
+const QUAD = [[32, 32], [224, 32], [224, 96], [32, 96]];
+const ROTATED = [[224, 96], [32, 96], [32, 32], [224, 32]];
+const BOWTIE = [[32, 32], [224, 96], [224, 32], [32, 96]];
+
+try {
+  execFileSync(python, ['-c', [
+    'import sys',
+    'from PIL import Image',
+    'Image.new("RGBA", (32, 32), (255, 0, 0, 255)).save(sys.argv[1])',
+  ].join('\n'), charFile], { stdio: 'inherit' });
+
+  // ---------------------------------------------------------------- tools
+  const { tools, commands } = makeContext();
+  for (const toolName of ['dsh_wtskin_project', 'dsh_wtskin_layer', 'dsh_wtskin_export', 'dsh_wtskin_picker', 'dsh_wtskin_presets']) {
+    assert(tools.has(toolName), `missing tool ${toolName}`);
+  }
+  assert(commands.some((c) => c.name === 'wtskinp'), 'missing /wtskinp command');
+  console.log('tools + command ok');
+
+  // ---------------------------------------------------------------- project
+  const project = tools.get('dsh_wtskin_project');
+  const created = await project.execute({
+    dir,
+    action: 'create',
+    data: {
+      width: 256,
+      height: 256,
+      base: { fill: [10, 10, 10], edgeGlow: 0, dots: false },
+      output: { dir: 'out', textureName: 'probe_c', dds: false, preview: true, blk: false },
+    },
+  });
+  assert(created.includes('created'), 'project create did not report success');
+  await access(path.join(dir, 'picker.html'));
+  assert(created.includes('picker:'), 'create should also write the picker');
+
+  await tools.get('dsh_wtskin_layer').execute({
+    dir,
+    action: 'add',
+    layer: { id: 'wing_l', image: charFile, quad: QUAD, size: 'chord' },
+  });
+
+  // ---------------------------------------------------------------- export
+  const exportText = await tools.get('dsh_wtskin_export').execute({ dir });
+  assert(exportText.includes('preview:'), 'export did not report a preview');
+  const png = path.join(dir, 'out', 'probe_c.png');
+  await access(png);
+  await access(path.join(dir, 'out', '_preview_quads.png'));
+
+  const centre = pixel(png, 128, 64);
+  const corner = pixel(png, 8, 8);
+  assert(centre[0] > 200 && centre[1] < 60, `layer not centred where expected: ${centre}`);
+  assert(corner[0] < 40, `base should stay dark at the corner: ${corner}`);
+  console.log('export + pixel placement ok', centre, corner);
+
+  // ---------------------------------------------------------------- rotation
+  // Starting at a different corner in perimeter order must not change the image:
+  // points 3-4 are still the opposite edge, so the chord is the same.
+  await tools.get('dsh_wtskin_layer').execute({ dir, action: 'update', id: 'wing_l', layer: { quad: ROTATED } });
+  await tools.get('dsh_wtskin_export').execute({ dir });
+  const png2 = path.join(dir, 'out', 'probe_c.png');
+  const hashRotated = createHash('sha256').update(await readFile(png2)).digest('hex');
+  await tools.get('dsh_wtskin_layer').execute({ dir, action: 'update', id: 'wing_l', layer: { quad: QUAD } });
+  await tools.get('dsh_wtskin_export').execute({ dir });
+  const hashNormal = createHash('sha256').update(await readFile(png2)).digest('hex');
+  assert(hashRotated === hashNormal, 'perimeter order must not depend on the starting corner');
+
+  await tools.get('dsh_wtskin_layer').execute({ dir, action: 'update', id: 'wing_l', layer: { quad: BOWTIE } });
+  const bowtieText = await tools.get('dsh_wtskin_export').execute({ dir });
+  assert(/cross/.test(bowtieText), 'a self-intersecting quad must be reported');
+  await tools.get('dsh_wtskin_layer').execute({ dir, action: 'update', id: 'wing_l', layer: { quad: QUAD } });
+  console.log('quad validation ok');
+
+  // ---------------------------------------------------------------- normal map
+  await tools.get('dsh_wtskin_project').execute({ dir, action: 'update', data: { output: { normal: { enabled: true, strength: 2 } } } });
+  const normalText = await tools.get('dsh_wtskin_export').execute({ dir });
+  assert(normalText.includes('normal:'), 'normal map was not reported');
+  await access(path.join(dir, 'out', 'probe_c_n.png'));
+  console.log('normal map ok');
+
+  // ---------------------------------------------------------------- picker
+  const pickerHtml = await readFile(path.join(dir, 'picker.html'), 'utf8');
+  assert(pickerHtml.includes('wing_l'), 'picker should list the project faces');
+  assert(!pickerHtml.includes('__WTSKIN_CONFIG__'), 'picker config was not injected');
+  console.log('picker ok');
+
+  // ---------------------------------------------------------------- migration
+  const v1Dir = path.join(dir, 'v1');
+  await mkdir(v1Dir, { recursive: true });
+  await writeFile(path.join(v1Dir, 'project.json'), JSON.stringify({
+    version: 1,
+    width: 1024,
+    height: 1024,
+    quadScale: 2.56,
+    layers: [{ id: 'a', image: 'char.png', quad: [[10, 10], [20, 10], [20, 20], [10, 20]], quadScale: 2.56 }],
+  }, null, 2), { encoding: 'utf8' });
+  const readBack = JSON.parse(await tools.get('dsh_wtskin_project').execute({ dir: v1Dir, action: 'read' }));
+  assert(readBack._migration.length > 0, 'v1 project should report migration notes');
+  assert(readBack.layers[0].quadScale === undefined, 'v1 layer quadScale must be dropped');
+  assert(readBack.quadScale === undefined, 'v1 project quadScale must be dropped');
+  console.log('v1 migration ok');
+
+  // ---------------------------------------------------------------- command
+  const noBrowser = makeContext({ browser: false, projectsDir: path.join(dir, 'skins-a') });
+  const refused = await noBrowser.commands[0].handler({
+    commandId: 'c1', agent: { id: 'a' }, rawInput: 'Q-5L', attachments: [], signal: new AbortController().signal,
+  });
+  assert(refused.kind === 'error' && /浏览器/.test(refused.text), 'command must refuse without browser control');
+
+  const withBrowser = makeContext({ browser: true, projectsDir: path.join(dir, 'skins-b') });
+  const started = await withBrowser.commands[0].handler({
+    commandId: 'c2', agent: { id: 'a' }, rawInput: 'Q-5L', attachments: [], signal: new AbortController().signal,
+  });
+  assert(started.kind === 'success', `command failed: ${started.text}`);
+  const startedDir = /工程已创建：(.+)/.exec(started.text)[1].trim();
+  await access(path.join(startedDir, 'project.json'));
+  await access(path.join(startedDir, 'picker.html'));
+  console.log('/wtskinp ok:', startedDir);
+
+  console.log('\nall checks passed');
+} finally {
+  await rm(dir, { recursive: true, force: true });
+}

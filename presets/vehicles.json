@@ -1,0 +1,35 @@
+[
+  {
+    "id": "q_5l",
+    "name": "Q-5L (强-5L / Fantan)",
+    "textureName": "q_5l_c",
+    "blkName": "q_5l.blk",
+    "blkEntries": [
+      { "from": "q_5l_c*", "to": "q_5l_c.dds" },
+      { "from": "q_5l_c_dmg*", "to": "q_5l_c.dds" }
+    ],
+    "notes": "Optional extras: q_5l_n, q_5l_n_dmg, q_5l_pylon_bomb1..3_c/_n, q_5l_pylon_rocket3_c/_n, q_5_cockpit_c, q_5_cockpit_labels_c"
+  },
+  {
+    "id": "su_27",
+    "name": "Su-27 (8K example)",
+    "textureName": "su_27",
+    "blkName": "su_27.blk",
+    "blkEntries": [
+      { "from": "su_27_c*", "to": "su_27.dds" },
+      { "from": "su_27_n*", "to": "su_27_n.dds" }
+    ],
+    "notes": "Pylons and jet_flame_diamonds can be added as extra replace_tex entries."
+  },
+  {
+    "id": "j_10a",
+    "name": "J-10A",
+    "textureName": "j_10a",
+    "blkName": "j_10a.blk",
+    "blkEntries": [
+      { "from": "j_10a_c*", "to": "j_10a.dds" },
+      { "from": "j_10a_n*", "to": "j_10a_n.dds" }
+    ],
+    "notes": "Aircraft skins use replace_tex only; no rotatable camo."
+  }
+]
