@@ -71,28 +71,11 @@ window.__ModuleLoader__.load({
       const [faceName, setFaceName] = React.useState('face_1');
       const [status, setStatus] = React.useState('');
       const [busy, setBusy] = React.useState(false);
-      const [roster, setRoster] = React.useState(null);
       const imageRef = React.useRef(null);
       const urlRef = React.useRef(null);
       const boxRef = React.useRef(null);
 
       const scale = project && image ? project.width / image.w : 1;
-
-      // Diagnostic: show the Host's preset roster verbatim (this is what the
-      // mode picker filters), so "registered but missing" stops being a guess.
-      React.useEffect(() => {
-        let cancelled = false;
-        const run = async () => {
-          try {
-            const out = await api.remote.agentPresets.list();
-            if (!cancelled) setRoster(out);
-          } catch (error) {
-            if (!cancelled) setRoster({ error: String((error && (error.message || error)) || error) });
-          }
-        };
-        run();
-        return () => { cancelled = true; };
-      }, []);
 
       const load = React.useCallback(async (preferred) => {
         const id = sessionId();
@@ -361,21 +344,12 @@ window.__ModuleLoader__.load({
           }, status)
           : null,
 
-        h('div', { style: { borderTop: `1px solid ${C.border}`, marginTop: '8px', paddingTop: '6px' } },
-          h('div', { style: { color: C.muted, marginBottom: '4px' } }, '模式 roster（诊断）'),
-          h('pre', {
-            style: {
-              margin: 0, maxHeight: '220px', overflow: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-all',
-              font: '10.5px ui-monospace,Consolas,monospace', color: C.text,
-            },
-          }, roster === null ? '读取中…' : JSON.stringify(roster, null, 2).slice(0, 2000)),
-        ),
       );
     }
 
     return {
       inject: ['slots', 'sidebarRightTabs', 'sidebarRight', 'sessions',
-        'remote', 'remote.workspaceFiles', 'remote.commands', 'remote.agentPresets'],
+        'remote', 'remote.workspaceFiles', 'remote.commands'],
       apply(ctx) {
         api = ctx;
 

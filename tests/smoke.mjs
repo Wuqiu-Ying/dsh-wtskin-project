@@ -41,6 +41,7 @@ function makeContext({ browser = false, cwd } = {}) {
         callback({
           agentPresets: {
             register: async (definition) => { presets.push(definition); return () => {}; },
+            list: async () => presets.map((definition) => ({ id: definition.id, name: definition.name, order: definition.order })),
           },
           effect: (fn) => { fn(); return () => {}; },
         });
