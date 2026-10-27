@@ -264,14 +264,35 @@ ctx.sidebarRight.openTab('wtskin-picker', { params: { dir } });
 
 ---
 
-## 8. 待验证（Step 0 探针）
+## 8. Step 0 结论（已实测）
 
-- [ ] 右栏 tab 类型注册 + `openTab` 能展开并聚焦。
-- [ ] 面板能通过 `ctx.remote.workspaceFiles` 读取 `project.json`。
-- [ ] 面板能通过 `ctx.remote.commands.execute()` 调通内部命令（签名与返回值）。
-- [ ] 预设里 `plugins` 能解析我们自己的包；模式只对新会话生效的边界。
-- [ ] Client 能否读到会话的 preset id（决定"自动打开"的首选方案）。
-- [ ] 浏览器能力检测在预设模式下仍有效（无浏览器工具时给出安装提示）。
+在一个临时探针 bundle 上跑通了，结论如下。
+
+| 待验证项 | 结论 |
+| --- | --- |
+| 右栏 tab 注册 + 自动打开 | ✅ `ctx.sidebarRightTabs.register` + `ctx.slots.register` + `ctx.sidebarRight.openTab(kind)` 生效，右栏自动展开并选中该 tab |
+| 面板读工程 | ✅ `ctx.remote.workspaceFiles.list(sessionId, path, signal)` 返回目录项 |
+| 面板写回 Host | ✅ `ctx.remote.commands.execute(sessionId, line, [])` → `{commandId, result:{kind:'success', text:'pong:hi'}}` |
+| session id 来源 | ✅ `ctx.sidebarRight.mounted.getSnapshot()` → `"session-<uuid>"`；**必须带前缀**，裸 uuid 报 `gateway/lookup-not-found` |
+
+### 必须记住的两条规则
+
+1. **每个 remote 命名空间都要单独 inject**：`inject: ['remote', 'remote.workspaceFiles', 'remote.commands', …]`。只 inject `remote` 会在第一次访问时报 `cannot get property "remote.workspaceFiles" without inject`。
+2. **远端方法的第一个参数是会话 id 字符串**，不是对象：
+   - `workspaceFiles.list(sessionId, path, signal)`
+   - `workspaceFiles.read(sessionId, path, {offset,limit}, signal)`
+   - `commands.execute(sessionId, line, attachments, signal)`
+   （传 `{sessionId, workspaceRoot}` 会报 `gateway/input-invalid: workspaceFileScopeId`。）
+
+### 打开时机
+
+`openTab` 在没有挂载会话时会抛错，所以面板的自动打开写成「轮询重试直到成功」，成功一次就停止；页面重载时再执行一次。
+
+### Step 0 未覆盖、留给后续
+
+- 预设 `plugins` 引用我们自己的包（探针预设只挂了 persona）。
+- 切换预设只对新会话生效的边界。
+- 浏览器能力检测在预设模式下的表现。
 
 ---
 
@@ -314,9 +335,14 @@ ctx.sidebarRight.openResource(address, { params })
 ctx.sidebarRight.close(tabId) / active() / isExpanded() / toggleExpanded() / toggleFullscreen(target)
 ctx.layout.openRightbar(track, fullscreen) / closeRightbar()
 
-// 客户端读写
-ctx.remote.workspaceFiles.list(path, signal) / read(scope, path, range, signal) / stat(...)
-ctx.remote.commands.execute(agent, line, attachments, signal)
+// 客户端读写（第一个参数都是会话 id 字符串）
+ctx.remote.workspaceFiles.list(sessionId, path, signal)
+ctx.remote.workspaceFiles.read(sessionId, path, { offset?, limit? }, signal)
+ctx.remote.commands.execute(sessionId, line, attachments, signal)
+
+// 会话 id（带 session- 前缀）
+ctx.sidebarRight.mounted.getSnapshot()   // → "session-<uuid>"
+ctx.sessions.binding(sessionId)          // 自有字段：sessionId / session / eventSource / ctx
 
 // 叫醒模型
 agent.inject(text) + agent.followup()
