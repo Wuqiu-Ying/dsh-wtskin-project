@@ -193,6 +193,26 @@ try {
   assert(second.includes('-2'), `a name collision must get a numeric suffix: ${second}`);
   console.log('WTSP + panel save ok');
 
+  // ---------------------------------------------------------------- /wtskinp
+  const noBrowser = makeContext({ cwd });
+  const refused = await noBrowser.commands.find((command) => command.name === 'wtskinp').handler({
+    rawInput: '', agent: { id: 'a' }, attachments: [], signal: new AbortController().signal,
+  });
+  assert(refused.kind === 'error' && /浏览器/.test(refused.text), 'wtskinp must refuse without browser control');
+
+  const withBrowser = makeContext({ cwd, browser: true });
+  const started = await withBrowser.commands.find((command) => command.name === 'wtskinp').handler({
+    rawInput: '苏-27 海天', agent: { id: 'a' }, attachments: [], signal: new AbortController().signal,
+  });
+  assert(started.kind === 'success' && /工程已创建/.test(started.text), `wtskinp failed: ${started.text}`);
+  await access(path.join(cwd, 'WTSP', '苏-27_海天', 'project.json'));
+
+  const bare = await withBrowser.commands.find((command) => command.name === 'wtskinp').handler({
+    rawInput: '', agent: { id: 'a' }, attachments: [], signal: new AbortController().signal,
+  });
+  assert(bare.kind === 'success' && /先/.test(bare.text), 'wtskinp without args should ask first');
+  console.log('/wtskinp ok');
+
   console.log('\nall checks passed');
 } finally {
   await rm(dir, { recursive: true, force: true });
