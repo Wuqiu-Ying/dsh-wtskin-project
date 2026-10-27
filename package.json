@@ -9,7 +9,15 @@
     ".": "./lib/index.js",
     "./client": "./client/index.js"
   },
-  "files": ["lib", "client", "python", "presets", "assets", "cordis.patch.yml", "README.md", "CHANGELOG.md"],
+  "files": ["lib", "preset", "client", "python", "presets", "assets", "cordis.patch.yml", "README.md", "CHANGELOG.md"],
+  "dependencies": {
+    "@deepseek-ai/dsh-time-context": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-tool-ask-user": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-tool-fs": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-tool-todo": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-tool-web": "0.2.1-rc.3",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.3"
+  },
   "dsh": {
     "bundle": { "patch": "./cordis.patch.yml" },
     "client": {
