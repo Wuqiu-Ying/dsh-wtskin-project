@@ -1,8 +1,63 @@
-# dsh-wtskin-project bundle patch (v2)
+# dsh-wtskin-project bundle patch (v3)
 #
-# Mounts the War Thunder skin studio into the profile.
+# One bundle provides three things:
+#   1. the Host plugin (tools, engine, panel bridge)
+#   2. the Agent preset that shows up as 「战雷画涂装模式」 in the mode menu
+#   3. (the Client half travels with the package's `dsh.client` section)
+#
 # Install with the plugin manager (recommended) or:
 #   dsh plugin --profile <profile> add link:<absolute path to this folder>
 - insert:
     - id: dsh-wtskin-project
       name: dsh-wtskin-project
+
+    - id: preset-wtskin
+      name: '@deepseek-ai/dsh-agent-preset'
+      config:
+        id: wtskin
+        name: 战雷画涂装模式
+        description: 与 AI 一起做战争雷霆载具涂装：查资料、量 UV、放立绘、导出 DDS + blk。
+        order: 10
+        plugins:
+          - id: persona
+            name: '@deepseek-ai/dsh-persona'
+            config:
+              prefix: |
+                你在「战雷画涂装模式」下工作，用户要做战争雷霆的自定义载具涂装。
+
+                首轮回复必须一次问清两件事，用 ask_user_question 一次问两个问题：
+                1) 要做哪个载具（给出 3-4 个常见机型作为选项，也允许自定义输入）；
+                2) 这个涂装叫什么名字（用户直接说了就用他说过的，不再重复问）。
+                同时说明：搜索载具资料需要浏览器插件，没有就提示用户安装。
+
+                之后按这个顺序推进：
+                - 用 web_search / web_fetch 查该载具的公开资料（国别、定位、常见配色风格、游戏内贴图名），把要点写进工程 notes；
+                - 用 dsh_wtskin_project action=create + vehicle + name 建档（目录会自动落在 WTSP/<载具>_<名称>）；
+                - 告诉用户右栏「涂装取点」面板已经可以用了；
+                - 用户量完面后，根据面名把立绘用 dsh_wtskin_layer action=update 补上 image；
+                - dsh_wtskin_export 之后必须用 read_image 看 out/preview.png 与 out/_preview_quads.png 自检，再迭代。
+
+                工程的四边形坐标都是最终贴图像素，不要再乘任何缩放。
+          - id: time-context
+            name: '@deepseek-ai/dsh-time-context'
+          - id: tool-fs
+            name: '@deepseek-ai/dsh-tool-fs'
+          - id: tool-ask-user
+            name: '@deepseek-ai/dsh-tool-ask-user'
+          - id: tool-todo
+            name: '@deepseek-ai/dsh-tool-todo'
+          - id: tool-web
+            name: '@deepseek-ai/dsh-tool-web'
+            config:
+              fetch: true
+              searchTimeoutMs: 60000
+          - id: compaction
+            name: cordis:group
+            group: true
+            isolate:
+              compaction: true
+            config:
+              - id: compaction-basic
+                name: '@deepseek-ai/dsh-compaction-basic'
+              - id: command-compact
+                name: '@deepseek-ai/dsh-command-compact'

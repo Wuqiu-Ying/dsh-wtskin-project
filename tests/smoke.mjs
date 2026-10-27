@@ -21,7 +21,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-function makeContext({ browser = false, projectsDir } = {}) {
+function makeContext({ browser = false, cwd } = {}) {
   const tools = new Map();
   const commands = [];
   const ctx = {
@@ -37,9 +37,9 @@ function makeContext({ browser = false, projectsDir } = {}) {
       ? { register: (definition) => { commands.push(definition); return () => {}; } }
       : undefined),
     agents: { get: () => undefined },
-    workingDirectory: { defaultDirectory: os.tmpdir() },
+    workingDirectory: { defaultDirectory: cwd ?? os.tmpdir() },
   };
-  apply(ctx, { pythonPath: python, projectsDir });
+  apply(ctx, { pythonPath: python });
   return { ctx, tools, commands };
 }
 
@@ -75,8 +75,11 @@ try {
   for (const toolName of ['dsh_wtskin_project', 'dsh_wtskin_layer', 'dsh_wtskin_export', 'dsh_wtskin_picker', 'dsh_wtskin_presets']) {
     assert(tools.has(toolName), `missing tool ${toolName}`);
   }
-  assert(commands.some((c) => c.name === 'wtskinp'), 'missing /wtskinp command');
-  console.log('tools + command ok');
+  assert(commands.some((c) => c.name === 'wtskin-save'), 'missing the internal wtskin-save command');
+  const exportDef = tools.get('dsh_wtskin_export');
+  assert(exportDef.parameters && exportDef.parameters.type === 'object', 'tool parameters must be a JSON Schema object');
+  assert(exportDef.parameters.properties.dir, 'parameters must survive the schema conversion');
+  console.log('tools + panel bridge ok');
 
   // ---------------------------------------------------------------- project
   const project = tools.get('dsh_wtskin_project');
@@ -160,22 +163,35 @@ try {
   assert(readBack.quadScale === undefined, 'v1 project quadScale must be dropped');
   console.log('v1 migration ok');
 
-  // ---------------------------------------------------------------- command
-  const noBrowser = makeContext({ browser: false, projectsDir: path.join(dir, 'skins-a') });
-  const refused = await noBrowser.commands[0].handler({
-    commandId: 'c1', agent: { id: 'a' }, rawInput: 'Q-5L', attachments: [], signal: new AbortController().signal,
-  });
-  assert(refused.kind === 'error' && /浏览器/.test(refused.text), 'command must refuse without browser control');
+  // ---------------------------------------------------------------- WTSP + panel save
+  const cwd = path.join(dir, 'cwd');
+  await mkdir(cwd, { recursive: true });
+  const panel = makeContext({ cwd });
 
-  const withBrowser = makeContext({ browser: true, projectsDir: path.join(dir, 'skins-b') });
-  const started = await withBrowser.commands[0].handler({
-    commandId: 'c2', agent: { id: 'a' }, rawInput: 'Q-5L', attachments: [], signal: new AbortController().signal,
+  const createdWtsp = await panel.tools.get('dsh_wtskin_project').execute({
+    action: 'create', vehicle: 'Q-5L', name: '霓虹夜航', data: { width: 512, height: 512 },
   });
-  assert(started.kind === 'success', `command failed: ${started.text}`);
-  const startedDir = /工程已创建：(.+)/.exec(started.text)[1].trim();
-  await access(path.join(startedDir, 'project.json'));
-  await access(path.join(startedDir, 'picker.html'));
-  console.log('/wtskinp ok:', startedDir);
+  assert(createdWtsp.includes('WTSP'), `project should land in WTSP: ${createdWtsp}`);
+  assert(createdWtsp.includes('Q-5L_霓虹夜航'), `directory should be vehicle_name: ${createdWtsp}`);
+
+  const save = panel.commands.find((command) => command.name === 'wtskin-save');
+  const saved = await save.handler({
+    rawInput: JSON.stringify({
+      dir: 'WTSP/Q-5L_霓虹夜航',
+      faces: [{ id: 'wing_l', quad: [[10, 10], [50, 10], [50, 40], [10, 40]] }],
+    }),
+    agent: { id: 'a' },
+  });
+  assert(saved.kind === 'success', `panel save failed: ${saved.text}`);
+  const savedProject = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
+  assert(savedProject.layers.length === 1 && savedProject.layers[0].id === 'wing_l', 'panel save missed the layer');
+  assert(savedProject.layers[0].image === '', 'a panel-measured layer starts without art');
+
+  const second = await panel.tools.get('dsh_wtskin_project').execute({
+    action: 'create', vehicle: 'Q-5L', name: '霓虹夜航', data: { width: 512, height: 512 },
+  });
+  assert(second.includes('-2'), `a name collision must get a numeric suffix: ${second}`);
+  console.log('WTSP + panel save ok');
 
   console.log('\nall checks passed');
 } finally {
