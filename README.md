@@ -128,7 +128,7 @@ C:\Users\<用户>\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\pyth
 
 ## 下一步（v3）
 
-v3 的设计记录见 [docs/v3-architecture.md](docs/v3-architecture.md)：模式下拉入口「战雷画涂装模式」、右侧栏原生取点面板、`WTSP` 目录规则，以及面板与模型通过 Host 中转的通信方式。
+v3 的设计记录见 [docs/v3-architecture.md](docs/v3-architecture.md)，当前进度与踩坑记录见 [docs/progress.md](docs/progress.md)：模式下拉入口「战雷画涂装模式」、右侧栏原生取点面板、`WTSP` 目录规则，以及面板与模型通过 Host 中转的通信方式。
 
 ## 许可
 
