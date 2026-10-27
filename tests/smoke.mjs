@@ -95,7 +95,7 @@ try {
   assert(commands.some((c) => c.name === 'wtskin-save'), 'missing the internal wtskin-save command');
   await new Promise((resolve) => setImmediate(resolve));
   assert(presets.length === 1, 'the mode preset was not registered');
-  assert(presets[0].id === 'wtskin' && presets[0].plugins.length === 1, 'preset declaration is incomplete');
+  assert(presets[0].id === 'wtskin' && presets[0].plugins.length === 6, 'preset declaration is incomplete');
   assert(presets[0].name === '战雷画涂装模式', 'preset display name is wrong');
   const exportDef = tools.get('dsh_wtskin_export');
   assert(exportDef.parameters && exportDef.parameters.type === 'object', 'tool parameters must be a JSON Schema object');
