@@ -126,6 +126,10 @@ C:\Users\<用户>\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\pyth
 - 法线贴图由成品亮度推导，是近似值，不能替代真实高模烘焙。
 - 4K 每次导出全量重算，暂无按图层缓存。
 
+## 下一步（v3）
+
+v3 的设计记录见 [docs/v3-architecture.md](docs/v3-architecture.md)：模式下拉入口「战雷画涂装模式」、右侧栏原生取点面板、`WTSP` 目录规则，以及面板与模型通过 Host 中转的通信方式。
+
 ## 许可
 
 MIT。用户素材（角色立绘等）的版权由使用者自行负责。
