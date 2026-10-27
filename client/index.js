@@ -199,6 +199,7 @@ window.__ModuleLoader__.load({
       },
         h('div', { style: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' } },
           h('strong', { style: { fontSize: '13px' } }, '涂装取点'),
+          h('span', { style: { color: C.muted, fontSize: '11px' } }, 'v3'),
           h('button', { type: 'button', onClick: () => load(dir), style: { ...btn(false), marginLeft: 'auto' } }, '刷新'),
         ),
 
