@@ -24,6 +24,8 @@ function assert(condition, message) {
 function makeContext({ browser = false, cwd } = {}) {
   const tools = new Map();
   const commands = [];
+  const workingDirectory = { defaultDirectory: cwd ?? os.tmpdir() };
+  const agents = { get: () => undefined };
   const ctx = {
     tools: {
       register: (definition) => { tools.set(definition.name, definition); },
@@ -33,11 +35,14 @@ function makeContext({ browser = false, cwd } = {}) {
     systemPrompt: { section: () => {} },
     logger: { warn: (...parts) => console.warn('[warn]', ...parts) },
     effect: (fn) => { fn(); return () => {}; },
-    get: (serviceName) => (serviceName === 'commands'
-      ? { register: (definition) => { commands.push(definition); return () => {}; } }
-      : undefined),
-    agents: { get: () => undefined },
-    workingDirectory: { defaultDirectory: cwd ?? os.tmpdir() },
+    get: (serviceName) => {
+      if (serviceName === 'commands') {
+        return { register: (definition) => { commands.push(definition); return () => {}; } };
+      }
+      if (serviceName === 'workingDirectory') return workingDirectory;
+      if (serviceName === 'agents') return agents;
+      return undefined;
+    },
   };
   apply(ctx, { pythonPath: python });
   return { ctx, tools, commands };
