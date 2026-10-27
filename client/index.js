@@ -361,18 +361,41 @@ window.__ModuleLoader__.load({
 
         ctx.effect(() => ctx.slots.register({ name: 'sidebar.right.pane.tab', key: ID }, Panel));
 
-        let timer = 0;
-        let tries = 0;
-        timer = window.setInterval(() => {
-          tries += 1;
-          try {
-            ctx.sidebarRight.openTab(KIND);
-            window.clearInterval(timer);
-          } catch {
-            if (tries > 60) window.clearInterval(timer);
-          }
-        }, 1500);
-        ctx.effect(() => () => window.clearInterval(timer));
+        // Invisible session watcher: the Host writes WTSP/.open when a project
+        // is created or /wtskinp runs, and this brings the panel forward.
+        // Nothing opens on a normal startup (the earlier unconditional
+        // openTab poll stole the right column at every launch).
+        function OpenRequestWatch() {
+          React.useEffect(() => {
+            let stopped = false;
+            let last = null;
+            const tick = async () => {
+              if (stopped) return;
+              const sid = sessionId();
+              if (!sid) return;
+              try {
+                const file = await api.remote.workspaceFiles.read(sid, 'WTSP/.open', {}, new AbortController().signal);
+                const stamp = Number(String(file.text || '').trim());
+                if (!Number.isFinite(stamp) || stamp === last) return;
+                if (Date.now() - stamp > 120_000) return;
+                last = stamp;
+                try { api.sidebarRight.openTab(KIND); } catch { /* no session yet */ }
+              } catch {
+                /* the marker does not exist until a project is created */
+              }
+            };
+            tick();
+            const timer = window.setInterval(tick, 3000);
+            return () => { stopped = true; window.clearInterval(timer); };
+          }, []);
+          return null;
+        }
+
+        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
+          name: 'conversation.composer.dock',
+          id: 'wtskin-open-request',
+          order: 90,
+        }, OpenRequestWatch));
       },
     };
   },
