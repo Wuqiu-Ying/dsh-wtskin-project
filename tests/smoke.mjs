@@ -24,6 +24,7 @@ function assert(condition, message) {
 function makeContext({ browser = false, cwd } = {}) {
   const tools = new Map();
   const commands = [];
+  const presets = [];
   const workingDirectory = { defaultDirectory: cwd ?? os.tmpdir() };
   const agents = { get: () => undefined };
   const ctx = {
@@ -35,6 +36,16 @@ function makeContext({ browser = false, cwd } = {}) {
     systemPrompt: { section: () => {} },
     logger: { warn: (...parts) => console.warn('[warn]', ...parts) },
     effect: (fn) => { fn(); return () => {}; },
+    inject: (deps, callback) => {
+      if (deps.includes('agentPresets')) {
+        callback({
+          agentPresets: {
+            register: async (definition) => { presets.push(definition); return () => {}; },
+          },
+          effect: (fn) => { fn(); return () => {}; },
+        });
+      }
+    },
     get: (serviceName) => {
       if (serviceName === 'commands') {
         return { register: (definition) => { commands.push(definition); return () => {}; } };
@@ -45,7 +56,7 @@ function makeContext({ browser = false, cwd } = {}) {
     },
   };
   apply(ctx, { pythonPath: python });
-  return { ctx, tools, commands };
+  return { ctx, tools, commands, presets };
 }
 
 function pixel(file, x, y) {
@@ -76,11 +87,15 @@ try {
   ].join('\n'), charFile], { stdio: 'inherit' });
 
   // ---------------------------------------------------------------- tools
-  const { tools, commands } = makeContext();
+  const { tools, commands, presets } = makeContext();
   for (const toolName of ['dsh_wtskin_project', 'dsh_wtskin_layer', 'dsh_wtskin_export', 'dsh_wtskin_picker', 'dsh_wtskin_presets']) {
     assert(tools.has(toolName), `missing tool ${toolName}`);
   }
   assert(commands.some((c) => c.name === 'wtskin-save'), 'missing the internal wtskin-save command');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert(presets.length === 1, 'the mode preset was not registered');
+  assert(presets[0].id === 'wtskin' && presets[0].plugins.length === 6, 'preset declaration is incomplete');
+  assert(presets[0].name === '战雷画涂装模式', 'preset display name is wrong');
   const exportDef = tools.get('dsh_wtskin_export');
   assert(exportDef.parameters && exportDef.parameters.type === 'object', 'tool parameters must be a JSON Schema object');
   assert(exportDef.parameters.properties.dir, 'parameters must survive the schema conversion');
