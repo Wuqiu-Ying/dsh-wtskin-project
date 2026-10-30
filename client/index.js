@@ -371,20 +371,30 @@ window.__ModuleLoader__.load({
           React.useEffect(() => {
             let stopped = false;
             let last = null;
+            let reported = false;
+            const report = async (sid, extra) => {
+              reported = true;
+              try {
+                await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, ...extra })}`, []);
+              } catch { /* best effort */ }
+            };
             const tick = async () => {
               if (stopped) return;
               const sid = sessionId();
               if (!sid) return;
+              let stamp = null;
+              let opened = 'not-attempted';
               try {
                 const file = await api.remote.workspaceFiles.read(sid, 'WTSP/.open', {}, new AbortController().signal);
-                const stamp = Number(String(file.text || '').trim());
-                if (!Number.isFinite(stamp) || stamp === last) return;
-                if (Date.now() - stamp > 120_000) return;
-                last = stamp;
-                try { api.sidebarRight.openTab(KIND); } catch { /* no session yet */ }
-              } catch {
-                /* the marker does not exist until a project is created */
+                stamp = Number(String(file.text || '').trim());
+                if (Number.isFinite(stamp) && stamp !== last && Date.now() - stamp <= 120_000) {
+                  last = stamp;
+                  try { api.sidebarRight.openTab(KIND); opened = 'ok'; } catch (error) { opened = String(error); }
+                }
+              } catch (error) {
+                stamp = `read-failed: ${String((error && error.message) || error)}`;
               }
+              if (!reported) await report(sid, { marker: stamp, opened });
             };
             tick();
             const timer = window.setInterval(tick, 3000);
