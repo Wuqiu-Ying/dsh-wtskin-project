@@ -26,7 +26,14 @@ function makeContext({ browser = false, cwd } = {}) {
   const commands = [];
   const presets = [];
   const workingDirectory = { defaultDirectory: cwd ?? os.tmpdir() };
-  const agents = { get: () => undefined };
+  const injected = [];
+  let followed = 0;
+  const agents = {
+    get: () => ({
+      inject: (text) => { injected.push(String(text)); },
+      followup: () => { followed += 1; },
+    }),
+  };
   const ctx = {
     tools: {
       register: (definition) => { tools.set(definition.name, definition); },
@@ -57,7 +64,7 @@ function makeContext({ browser = false, cwd } = {}) {
     },
   };
   apply(ctx, { pythonPath: python });
-  return { ctx, tools, commands, presets };
+  return { ctx, tools, commands, presets, injected, followedCount: () => followed };
 }
 
 function pixel(file, x, y) {
@@ -204,6 +211,8 @@ try {
     agent: { id: 'a' },
   });
   assert(saved.kind === 'success', `panel save failed: ${saved.text}`);
+  assert(panel.injected.some((text) => text.includes('面板刚保存')), 'the panel save must wake the model');
+  assert(panel.followedCount() === 1, 'the wake must call followup once');
   const savedProject = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
   assert(savedProject.layers.length === 1 && savedProject.layers[0].id === 'wing_l', 'panel save missed the layer');
   assert(savedProject.layers[0].image === '', 'a panel-measured layer starts without art');
