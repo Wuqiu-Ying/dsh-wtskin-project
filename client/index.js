@@ -369,40 +369,34 @@ window.__ModuleLoader__.load({
         // the native corner handle, and independent of the right sidebar (whose
         // tab never showed reliably). The pet widget proves this surface works.
         function FloatingPicker() {
-          const [mode, setMode] = React.useState(undefined);
+          const [projects, setProjects] = React.useState(null);
           const [open, setOpen] = React.useState(false);
           const [mini, setMini] = React.useState(false);
           const [dismissed, setDismissed] = React.useState(false);
           const [pos, setPos] = React.useState(null);
           const drag = React.useRef(null);
-          const checkedSid = React.useRef(null);
+
 
           React.useEffect(() => {
+            // Quiet gate: no host command here, because every command execution
+            // is logged into the session and showed up as chat rows.
             let stopped = false;
-            const checkMode = async () => {
+            let timer = 0;
+            const tick = async () => {
               if (stopped) return;
               const sid = sessionId();
-              if (!sid || checkedSid.current === sid) return;
-              checkedSid.current = sid;
-              setOpen(false);
-              setMini(false);
-              setDismissed(false);
-              let preset = null;
+              if (!sid) return;
               try {
-                const out = await api.remote.commands.execute(sid, '/wtskin-whoami', []);
-                preset = JSON.parse((out && out.result && out.result.text) || '{}').preset || null;
-              } catch { preset = null; }
-              if (!stopped) setMode(preset);
+                const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
+                const count = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
+                if (!stopped) setProjects(count);
+              } catch {
+                if (!stopped) setProjects(0);
+              }
             };
-            const onFocus = () => { checkedSid.current = null; checkMode(); };
-            checkMode();
-            window.addEventListener('focus', onFocus);
-            const timer = window.setInterval(checkMode, 3000);
-            return () => {
-              stopped = true;
-              window.clearInterval(timer);
-              window.removeEventListener('focus', onFocus);
-            };
+            tick();
+            timer = window.setInterval(tick, 4000);
+            return () => { stopped = true; window.clearInterval(timer); };
           }, []);
 
           const startDrag = (event) => {
@@ -422,9 +416,15 @@ window.__ModuleLoader__.load({
           const endDrag = () => { drag.current = null; };
           const stop = (event) => { event.stopPropagation(); };
 
-          // Strictly this mode: unknown or another preset renders nothing, and
-          // nothing opens by itself — the edge tab is the only entry.
-          if (mode !== 'wtskin' || dismissed) return null;
+          // Prefer the session's preset when the binding exposes it (silent,
+          // no command); otherwise fall back to "this workspace has a skin".
+          let boundPreset = null;
+          try {
+            const binding = api.sessions.binding(sessionId());
+            boundPreset = binding?.agentPreset ?? binding?.session?.agentPreset ?? null;
+          } catch { boundPreset = null; }
+          if (boundPreset !== null && boundPreset !== 'wtskin') return null;
+          if (!projects || dismissed) return null;
 
           const iconBtn = {
             border: 'none', background: 'transparent', color: C.muted,
