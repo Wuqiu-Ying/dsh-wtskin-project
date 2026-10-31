@@ -60,6 +60,8 @@ window.__ModuleLoader__.load({
 
     const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
+    let openedOnce = false;
+
     function Panel() {
       const [sid, setSid] = React.useState(sessionId);
       const [projects, setProjects] = React.useState([]);
@@ -370,31 +372,34 @@ window.__ModuleLoader__.load({
         function OpenRequestWatch() {
           React.useEffect(() => {
             let stopped = false;
-            let last = null;
             let reported = false;
-            const report = async (sid, extra) => {
-              reported = true;
-              try {
-                await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, ...extra })}`, []);
-              } catch { /* best effort */ }
-            };
             const tick = async () => {
               if (stopped) return;
               const sid = sessionId();
               if (!sid) return;
-              let stamp = null;
+              let projects = 0;
               let opened = 'not-attempted';
               try {
-                const file = await api.remote.workspaceFiles.read(sid, 'WTSP/.open', {}, new AbortController().signal);
-                stamp = Number(String(file.text || '').trim());
-                if (Number.isFinite(stamp) && stamp !== last && Date.now() - stamp <= 120_000) {
-                  last = stamp;
-                  try { api.sidebarRight.openTab(KIND); opened = 'ok'; } catch (error) { opened = String(error); }
-                }
+                const listing = await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal);
+                projects = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
               } catch (error) {
-                stamp = `read-failed: ${String((error && error.message) || error)}`;
+                projects = `list-failed: ${String((error && error.message) || error)}`;
               }
-              if (!reported) await report(sid, { marker: stamp, opened });
+              if (typeof projects === 'number' && projects > 0 && !openedOnce) {
+                try {
+                  api.sidebarRight.openTab(KIND);
+                  opened = 'ok';
+                  openedOnce = true;
+                } catch (error) {
+                  opened = String(error);
+                }
+              }
+              if (!reported) {
+                reported = true;
+                try {
+                  await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, projects, opened })}`, []);
+                } catch { /* best effort */ }
+              }
             };
             tick();
             const timer = window.setInterval(tick, 3000);
