@@ -396,7 +396,8 @@ window.__ModuleLoader__.load({
             };
 
             const pollProjects = async () => {
-              if (stopped || autoOpened.current || modeRef.current !== 'wtskin') return;
+              if (stopped || autoOpened.current) return;
+              if (modeRef.current !== null && modeRef.current !== 'wtskin') return;
               const sid = sessionId();
               if (!sid) return;
               let projects = 0;
@@ -438,8 +439,9 @@ window.__ModuleLoader__.load({
           const endDrag = () => { drag.current = null; };
           const stop = (event) => { event.stopPropagation(); };
 
-          // The picker belongs to 战雷画涂装模式 only.
-          if (mode !== 'wtskin') return null;
+          // The picker belongs to 战雷画涂装模式 only; an unknown answer
+          // (whoami failed) fails open so a broken probe cannot hide the tool.
+          if (mode !== null && mode !== 'wtskin') return null;
 
           const chrome = {
             display: 'flex', alignItems: 'center', gap: '6px',
