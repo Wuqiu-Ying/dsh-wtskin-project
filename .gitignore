@@ -7,3 +7,4 @@ __pycache__/
 *.pyc
 .preset-status.json
 .client-diag.json
+.whoami.json
