@@ -6,3 +6,4 @@ test-out/
 __pycache__/
 *.pyc
 .preset-status.json
+.client-diag.json
