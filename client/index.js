@@ -369,52 +369,35 @@ window.__ModuleLoader__.load({
         // the native corner handle, and independent of the right sidebar (whose
         // tab never showed reliably). The pet widget proves this surface works.
         function FloatingPicker() {
-          const [mode, setMode] = React.useState(null);
+          const [mode, setMode] = React.useState(undefined);
           const [open, setOpen] = React.useState(false);
           const [mini, setMini] = React.useState(false);
+          const [dismissed, setDismissed] = React.useState(false);
           const [pos, setPos] = React.useState(null);
           const drag = React.useRef(null);
           const checkedSid = React.useRef(null);
-          const modeRef = React.useRef(null);
-          const autoOpened = React.useRef(false);
 
           React.useEffect(() => {
             let stopped = false;
-
             const checkMode = async () => {
               if (stopped) return;
               const sid = sessionId();
               if (!sid || checkedSid.current === sid) return;
               checkedSid.current = sid;
+              setOpen(false);
+              setMini(false);
+              setDismissed(false);
               let preset = null;
               try {
                 const out = await api.remote.commands.execute(sid, '/wtskin-whoami', []);
                 preset = JSON.parse((out && out.result && out.result.text) || '{}').preset || null;
               } catch { preset = null; }
-              modeRef.current = preset;
               if (!stopped) setMode(preset);
             };
-
-            const pollProjects = async () => {
-              if (stopped || autoOpened.current) return;
-              if (modeRef.current !== null && modeRef.current !== 'wtskin') return;
-              const sid = sessionId();
-              if (!sid) return;
-              let projects = 0;
-              try {
-                const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
-                projects = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
-              } catch { projects = 0; }
-              if (typeof projects === 'number' && projects > 0) {
-                autoOpened.current = true;
-                setOpen(true);
-              }
-            };
-
             const onFocus = () => { checkedSid.current = null; checkMode(); };
             checkMode();
             window.addEventListener('focus', onFocus);
-            const timer = window.setInterval(() => { checkMode(); pollProjects(); }, 3000);
+            const timer = window.setInterval(checkMode, 3000);
             return () => {
               stopped = true;
               window.clearInterval(timer);
@@ -439,9 +422,42 @@ window.__ModuleLoader__.load({
           const endDrag = () => { drag.current = null; };
           const stop = (event) => { event.stopPropagation(); };
 
-          // The picker belongs to 战雷画涂装模式 only; an unknown answer
-          // (whoami failed) fails open so a broken probe cannot hide the tool.
-          if (mode !== null && mode !== 'wtskin') return null;
+          // Strictly this mode: unknown or another preset renders nothing, and
+          // nothing opens by itself — the edge tab is the only entry.
+          if (mode !== 'wtskin' || dismissed) return null;
+
+          const iconBtn = {
+            border: 'none', background: 'transparent', color: C.muted,
+            cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px',
+          };
+
+          if (!open) {
+            return h('div', {
+              style: {
+                position: 'fixed', right: 0, top: '42%', zIndex: 60,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
+                padding: '4px 3px', borderRadius: '8px 0 0 8px',
+                border: `1px solid ${C.border}`, borderRight: 'none',
+                background: 'var(--dsw-alias-bg-overlay, #0f1a2d)',
+                boxShadow: '0 6px 18px rgba(0,0,0,.25)',
+              },
+            },
+              h('button', {
+                type: 'button',
+                onClick: () => setOpen(true),
+                title: '打开涂装取点',
+                style: {
+                  border: 'none', background: 'transparent', color: C.brand, cursor: 'pointer',
+                  writingMode: 'vertical-rl', padding: '6px 2px', letterSpacing: '2px',
+                  font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif',
+                },
+              }, '涂装取点'),
+              h('button', {
+                type: 'button', onClick: () => setDismissed(true), title: '隐藏',
+                style: { ...iconBtn, fontSize: '12px', padding: '2px 4px' },
+              }, '×'),
+            );
+          }
 
           const chrome = {
             display: 'flex', alignItems: 'center', gap: '6px',
@@ -449,26 +465,6 @@ window.__ModuleLoader__.load({
             cursor: 'move', userSelect: 'none',
             font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', color: C.muted,
           };
-          const iconBtn = {
-            border: 'none', background: 'transparent', color: C.muted,
-            cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px',
-          };
-
-          if (!open) {
-            return h('button', {
-              type: 'button',
-              onClick: () => setOpen(true),
-              title: '打开涂装取点',
-              style: {
-                position: 'fixed', right: 0, top: '42%', zIndex: 60,
-                padding: '10px 7px', borderRadius: '8px 0 0 8px',
-                border: `1px solid ${C.border}`, borderRight: 'none',
-                background: 'var(--dsw-alias-bg-overlay, #0f1a2d)', color: C.brand,
-                cursor: 'pointer', writingMode: 'vertical-rl',
-                font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', letterSpacing: '2px',
-              },
-            }, '涂装取点');
-          }
 
           if (mini) {
             return h('div', {
