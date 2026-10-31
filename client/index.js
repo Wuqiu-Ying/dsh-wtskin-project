@@ -369,41 +369,59 @@ window.__ModuleLoader__.load({
         // the native corner handle, and independent of the right sidebar (whose
         // tab never showed reliably). The pet widget proves this surface works.
         function FloatingPicker() {
+          const [mode, setMode] = React.useState(null);
           const [open, setOpen] = React.useState(false);
           const [mini, setMini] = React.useState(false);
           const [pos, setPos] = React.useState(null);
           const drag = React.useRef(null);
+          const checkedSid = React.useRef(null);
+          const modeRef = React.useRef(null);
+          const autoOpened = React.useRef(false);
 
           React.useEffect(() => {
             let stopped = false;
-            let opened = false;
-            const tick = async () => {
-              if (stopped || opened) return;
+
+            const checkMode = async () => {
+              if (stopped) return;
+              const sid = sessionId();
+              if (!sid || checkedSid.current === sid) return;
+              checkedSid.current = sid;
+              let preset = null;
+              try {
+                const out = await api.remote.commands.execute(sid, '/wtskin-whoami', []);
+                preset = JSON.parse((out && out.result && out.result.text) || '{}').preset || null;
+              } catch { preset = null; }
+              modeRef.current = preset;
+              if (!stopped) setMode(preset);
+            };
+
+            const pollProjects = async () => {
+              if (stopped || autoOpened.current || modeRef.current !== 'wtskin') return;
               const sid = sessionId();
               if (!sid) return;
               let projects = 0;
               try {
                 const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
                 projects = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
-              } catch (error) {
-                projects = String((error && error.message) || error);
-              }
+              } catch { projects = 0; }
               if (typeof projects === 'number' && projects > 0) {
-                opened = true;
+                autoOpened.current = true;
                 setOpen(true);
-                try {
-                  await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, projects, opened: 'floating' })}`, []);
-                } catch { /* best effort */ }
               }
             };
-            tick();
-            const timer = window.setInterval(tick, 3000);
-            return () => { stopped = true; window.clearInterval(timer); };
+
+            const onFocus = () => { checkedSid.current = null; checkMode(); };
+            checkMode();
+            window.addEventListener('focus', onFocus);
+            const timer = window.setInterval(() => { checkMode(); pollProjects(); }, 3000);
+            return () => {
+              stopped = true;
+              window.clearInterval(timer);
+              window.removeEventListener('focus', onFocus);
+            };
           }, []);
 
           const startDrag = (event) => {
-            // Buttons must keep their own clicks: capturing the pointer on the
-            // header swallowed the close button before this guard existed.
             const target = event.target;
             if (target && target.closest && target.closest('button')) return;
             const rect = event.currentTarget.getBoundingClientRect();
@@ -419,6 +437,9 @@ window.__ModuleLoader__.load({
           };
           const endDrag = () => { drag.current = null; };
           const stop = (event) => { event.stopPropagation(); };
+
+          // The picker belongs to 战雷画涂装模式 only.
+          if (mode !== 'wtskin') return null;
 
           const chrome = {
             display: 'flex', alignItems: 'center', gap: '6px',
