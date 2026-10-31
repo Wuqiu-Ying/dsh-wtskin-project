@@ -369,33 +369,33 @@ window.__ModuleLoader__.load({
         // the native corner handle, and independent of the right sidebar (whose
         // tab never showed reliably). The pet widget proves this surface works.
         function FloatingPicker() {
-          const [projects, setProjects] = React.useState(null);
           const [open, setOpen] = React.useState(false);
           const [mini, setMini] = React.useState(false);
-          const [dismissed, setDismissed] = React.useState(false);
           const [pos, setPos] = React.useState(null);
           const drag = React.useRef(null);
+          const lastStamp = React.useRef(0);
 
-
+          // The only two triggers write WTSP/.open: the /wtspwds command and the
+          // dsh_wtskin_picker tool. Reading the marker is silent — no command is
+          // executed here, so nothing is appended to the session log.
           React.useEffect(() => {
-            // Quiet gate: no host command here, because every command execution
-            // is logged into the session and showed up as chat rows.
             let stopped = false;
-            let timer = 0;
             const tick = async () => {
               if (stopped) return;
               const sid = sessionId();
               if (!sid) return;
               try {
-                const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
-                const count = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
-                if (!stopped) setProjects(count);
-              } catch {
-                if (!stopped) setProjects(0);
-              }
+                const file = unwrap(await api.remote.workspaceFiles.read(sid, 'WTSP/.open', {}, new AbortController().signal));
+                const stamp = Number(String(file.text || '').trim());
+                if (!Number.isFinite(stamp) || stamp === lastStamp.current) return;
+                if (Math.abs(Date.now() - stamp) > 120_000) return;
+                lastStamp.current = stamp;
+                setOpen(true);
+                setMini(false);
+              } catch { /* the marker does not exist until a trigger runs */ }
             };
             tick();
-            timer = window.setInterval(tick, 4000);
+            const timer = window.setInterval(tick, 2000);
             return () => { stopped = true; window.clearInterval(timer); };
           }, []);
 
@@ -416,49 +416,12 @@ window.__ModuleLoader__.load({
           const endDrag = () => { drag.current = null; };
           const stop = (event) => { event.stopPropagation(); };
 
-          // Prefer the session's preset when the binding exposes it (silent,
-          // no command); otherwise fall back to "this workspace has a skin".
-          let boundPreset = null;
-          try {
-            const binding = api.sessions.binding(sessionId());
-            boundPreset = binding?.agentPreset ?? binding?.session?.agentPreset ?? null;
-          } catch { boundPreset = null; }
-          if (boundPreset !== null && boundPreset !== 'wtskin') return null;
-          if (!projects || dismissed) return null;
+          if (!open) return null;
 
           const iconBtn = {
             border: 'none', background: 'transparent', color: C.muted,
             cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px',
           };
-
-          if (!open) {
-            return h('div', {
-              style: {
-                position: 'fixed', right: 0, top: '42%', zIndex: 60,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px',
-                padding: '4px 3px', borderRadius: '8px 0 0 8px',
-                border: `1px solid ${C.border}`, borderRight: 'none',
-                background: 'var(--dsw-alias-bg-overlay, #0f1a2d)',
-                boxShadow: '0 6px 18px rgba(0,0,0,.25)',
-              },
-            },
-              h('button', {
-                type: 'button',
-                onClick: () => setOpen(true),
-                title: '打开涂装取点',
-                style: {
-                  border: 'none', background: 'transparent', color: C.brand, cursor: 'pointer',
-                  writingMode: 'vertical-rl', padding: '6px 2px', letterSpacing: '2px',
-                  font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif',
-                },
-              }, '涂装取点'),
-              h('button', {
-                type: 'button', onClick: () => setDismissed(true), title: '隐藏',
-                style: { ...iconBtn, fontSize: '12px', padding: '2px 4px' },
-              }, '×'),
-            );
-          }
-
           const chrome = {
             display: 'flex', alignItems: 'center', gap: '6px',
             padding: '6px 10px', borderBottom: `1px solid ${C.border}`,
@@ -483,10 +446,7 @@ window.__ModuleLoader__.load({
             },
               h('span', { style: { color: C.brand, fontWeight: 700 } }, '涂装取点'),
               h('button', { type: 'button', onPointerDown: stop, onClick: () => setMini(false), title: '展开', style: iconBtn }, '▢'),
-              h('button', {
-                type: 'button', onPointerDown: stop, title: '关闭',
-                onClick: () => { setMini(false); setOpen(false); }, style: iconBtn,
-              }, '×'),
+              h('button', { type: 'button', onPointerDown: stop, onClick: () => setOpen(false), title: '关闭', style: iconBtn }, '×'),
             );
           }
 
