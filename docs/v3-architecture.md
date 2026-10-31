@@ -350,3 +350,21 @@ agent.inject(text) + agent.followup()
 // 预设
 @deepseek-ai/dsh-agent-preset  config: { id, name, description, order, plugins: [...] }
 ```
+
+---
+
+## 12. 实现变更（2026-10-31）
+
+第 5、6 节是早期设计，实际实现有几处偏离，以本节为准。
+
+| 设计 | 实现 |
+| --- | --- |
+| 右栏 tab 面板（`sidebar.right.pane.tab`） | **`shell.overlay` 悬浮窗**：标题栏拖动、右下角缩放、可最小化；右栏 tab 方案因注册/可见性问题放弃 |
+| 自动打开 / 常驻小标签 | **两条显式触发**：用户 `/wtspwds`、模型 `dsh_wtskin_picker`；两者只写 `WTSP/.open`（epoch 毫秒），面板 **2 秒轮询**读取，**2 分钟**内有效 |
+| 客户端通过命令查询状态 | 已删除 `wtskin-diag`、`wtskin-whoami`：**命令执行会写进会话日志**，客户端与 Host 的静默通道只能用文件或 Remote |
+| 面板读写用 remote 返回值 | remote 返回 **`{ ok, value }`**，必须先解包；`read` 的正文在 `value.text` |
+| 工程按默认目录 | 必须用 **会话 cwd**：`workingDirectory.ensure(agent)`；`defaultDirectory` 是进程目录 |
+| — | preset 子插件行必须是 **`file://` 绝对 URL**；指向 `app.asar` 内的模块可以启动 |
+| — | 保存后唤醒模型用 `followup({ content, source })`；只 `inject` 不会唤醒 |
+
+命令面：`/wtskinp`（开始流程）、`/wtspwds`（开面板）、`wtskin-save`（内部保存通道，暂时无法从 `/` 菜单隐藏）。
