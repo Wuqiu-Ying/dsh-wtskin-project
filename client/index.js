@@ -48,13 +48,23 @@ window.__ModuleLoader__.load({
       }
     };
 
+    /** Remote calls answer {ok, value}; reading the wrapper as the payload was
+     *  why the panel saw no projects and the marker read back as 0. */
+    const unwrap = (answered) => {
+      if (answered && typeof answered === 'object' && 'ok' in answered) {
+        if (!answered.ok) throw new Error(answered.error?.message || answered.error?.code || 'remote call failed');
+        return answered.value;
+      }
+      return answered;
+    };
+
     const listDirs = async (sid, dir) => {
-      const listing = await api.remote.workspaceFiles.list(sid, dir, new AbortController().signal);
+      const listing = unwrap(await api.remote.workspaceFiles.list(sid, dir, new AbortController().signal));
       return (listing.entries || []).filter((entry) => entry.type === 'directory').map((entry) => `${dir}/${entry.name}`);
     };
 
     const readProject = async (sid, dir) => {
-      const file = await api.remote.workspaceFiles.read(sid, `${dir}/project.json`, {}, new AbortController().signal);
+      const file = unwrap(await api.remote.workspaceFiles.read(sid, `${dir}/project.json`, {}, new AbortController().signal));
       return JSON.parse(file.text);
     };
 
@@ -380,7 +390,7 @@ window.__ModuleLoader__.load({
               let projects = 0;
               let opened = 'not-attempted';
               try {
-                const listing = await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal);
+                const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
                 projects = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
               } catch (error) {
                 projects = `list-failed: ${String((error && error.message) || error)}`;
