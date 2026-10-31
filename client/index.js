@@ -365,49 +365,33 @@ window.__ModuleLoader__.load({
       apply(ctx) {
         api = ctx;
 
-        ctx.effect(() => ctx.sidebarRightTabs.register({
-          id: ID,
-          kind: KIND,
-          title: () => '涂装取点',
-          guide: [{ id: 'picker', title: '涂装取点', description: '在贴图上量机身四边形' }],
-          keepMounted: true,
-        }));
+        // Floating window over the frame: draggable by its header, resizable by
+        // the native corner handle, and independent of the right sidebar (whose
+        // tab never showed reliably). The pet widget proves this surface works.
+        function FloatingPicker() {
+          const [open, setOpen] = React.useState(false);
+          const [pos, setPos] = React.useState(null);
+          const drag = React.useRef(null);
 
-        ctx.effect(() => ctx.slots.register({ name: 'sidebar.right.pane.tab', key: ID }, Panel));
-
-        // Invisible session watcher: the Host writes WTSP/.open when a project
-        // is created or /wtskinp runs, and this brings the panel forward.
-        // Nothing opens on a normal startup (the earlier unconditional
-        // openTab poll stole the right column at every launch).
-        function OpenRequestWatch() {
           React.useEffect(() => {
             let stopped = false;
-            let reported = false;
+            let opened = false;
             const tick = async () => {
-              if (stopped) return;
+              if (stopped || opened) return;
               const sid = sessionId();
               if (!sid) return;
               let projects = 0;
-              let opened = 'not-attempted';
               try {
                 const listing = unwrap(await api.remote.workspaceFiles.list(sid, 'WTSP', new AbortController().signal));
                 projects = (listing.entries || []).filter((entry) => entry.type === 'directory').length;
               } catch (error) {
-                projects = `list-failed: ${String((error && error.message) || error)}`;
+                projects = String((error && error.message) || error);
               }
-              if (typeof projects === 'number' && projects > 0 && !openedOnce) {
+              if (typeof projects === 'number' && projects > 0) {
+                opened = true;
+                setOpen(true);
                 try {
-                  api.sidebarRight.openTab(KIND);
-                  opened = 'ok';
-                  openedOnce = true;
-                } catch (error) {
-                  opened = String(error);
-                }
-              }
-              if (!reported) {
-                reported = true;
-                try {
-                  await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, projects, opened })}`, []);
+                  await api.remote.commands.execute(sid, `/wtskin-diag ${JSON.stringify({ sid, projects, opened: 'floating' })}`, []);
                 } catch { /* best effort */ }
               }
             };
@@ -415,14 +399,78 @@ window.__ModuleLoader__.load({
             const timer = window.setInterval(tick, 3000);
             return () => { stopped = true; window.clearInterval(timer); };
           }, []);
-          return null;
+
+          const startDrag = (event) => {
+            const rect = event.currentTarget.parentElement.getBoundingClientRect();
+            drag.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
+            try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* ignore */ }
+          };
+          const moveDrag = (event) => {
+            if (!drag.current) return;
+            setPos({
+              x: Math.max(0, Math.min(window.innerWidth - 120, event.clientX - drag.current.dx)),
+              y: Math.max(0, Math.min(window.innerHeight - 48, event.clientY - drag.current.dy)),
+            });
+          };
+          const endDrag = () => { drag.current = null; };
+
+          if (!open) {
+            return h('button', {
+              type: 'button',
+              onClick: () => setOpen(true),
+              title: '打开涂装取点',
+              style: {
+                position: 'fixed', right: 0, top: '42%', zIndex: 60,
+                padding: '10px 7px', borderRadius: '8px 0 0 8px',
+                border: `1px solid ${C.border}`, borderRight: 'none',
+                background: 'var(--dsw-alias-bg-overlay, #0f1a2d)', color: C.brand,
+                cursor: 'pointer', writingMode: 'vertical-rl',
+                font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', letterSpacing: '2px',
+              },
+            }, '涂装取点');
+          }
+
+          const left = pos ? pos.x : Math.max(24, window.innerWidth - 470);
+          const top = pos ? pos.y : 96;
+          return h('div', {
+            style: {
+              position: 'fixed', left, top, zIndex: 60,
+              width: '420px', height: '600px', minWidth: '320px', minHeight: '260px',
+              resize: 'both', overflow: 'auto',
+              background: 'var(--dsw-alias-bg-layer-1, #0f1a2d)',
+              border: `1px solid ${C.border}`, borderRadius: '10px',
+              boxShadow: '0 18px 40px rgba(0,0,0,.45)',
+            },
+          },
+            h('div', {
+              onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag,
+              style: {
+                display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '6px 10px', borderBottom: `1px solid ${C.border}`,
+                cursor: 'move', userSelect: 'none',
+                font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', color: C.muted,
+              },
+            },
+              h('span', { style: { color: C.brand, fontWeight: 700 } }, '涂装取点'),
+              h('span', null, '拖动标题栏移动 · 右下角缩放'),
+              h('button', {
+                type: 'button',
+                onClick: () => setOpen(false),
+                style: {
+                  marginLeft: 'auto', border: 'none', background: 'transparent',
+                  color: C.muted, cursor: 'pointer', fontSize: '15px', lineHeight: 1,
+                },
+              }, '×'),
+            ),
+            h(Panel),
+          );
         }
 
-        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-          name: 'conversation.composer.dock',
-          id: 'wtskin-open-request',
-          order: 90,
-        }, OpenRequestWatch));
+        ctx.effect(() => ctx.slots.register({
+          name: 'shell.overlay',
+          id: 'wtskin-floating-picker',
+          order: 40,
+        }, FloatingPicker));
       },
     };
   },
