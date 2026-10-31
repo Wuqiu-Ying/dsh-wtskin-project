@@ -370,6 +370,7 @@ window.__ModuleLoader__.load({
         // tab never showed reliably). The pet widget proves this surface works.
         function FloatingPicker() {
           const [open, setOpen] = React.useState(false);
+          const [mini, setMini] = React.useState(false);
           const [pos, setPos] = React.useState(null);
           const drag = React.useRef(null);
 
@@ -401,7 +402,11 @@ window.__ModuleLoader__.load({
           }, []);
 
           const startDrag = (event) => {
-            const rect = event.currentTarget.parentElement.getBoundingClientRect();
+            // Buttons must keep their own clicks: capturing the pointer on the
+            // header swallowed the close button before this guard existed.
+            const target = event.target;
+            if (target && target.closest && target.closest('button')) return;
+            const rect = event.currentTarget.getBoundingClientRect();
             drag.current = { dx: event.clientX - rect.left, dy: event.clientY - rect.top };
             try { event.currentTarget.setPointerCapture(event.pointerId); } catch { /* ignore */ }
           };
@@ -413,6 +418,18 @@ window.__ModuleLoader__.load({
             });
           };
           const endDrag = () => { drag.current = null; };
+          const stop = (event) => { event.stopPropagation(); };
+
+          const chrome = {
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '6px 10px', borderBottom: `1px solid ${C.border}`,
+            cursor: 'move', userSelect: 'none',
+            font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', color: C.muted,
+          };
+          const iconBtn = {
+            border: 'none', background: 'transparent', color: C.muted,
+            cursor: 'pointer', fontSize: '14px', lineHeight: 1, padding: '0 2px',
+          };
 
           if (!open) {
             return h('button', {
@@ -430,6 +447,30 @@ window.__ModuleLoader__.load({
             }, '涂装取点');
           }
 
+          if (mini) {
+            return h('div', {
+              onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag,
+              style: {
+                position: 'fixed',
+                left: pos ? pos.x : Math.max(24, window.innerWidth - 220),
+                top: pos ? pos.y : 96,
+                zIndex: 60, display: 'flex', alignItems: 'center', gap: '8px',
+                padding: '6px 8px', borderRadius: '10px',
+                background: 'var(--dsw-alias-bg-layer-1, #0f1a2d)',
+                border: `1px solid ${C.border}`, boxShadow: '0 10px 24px rgba(0,0,0,.4)',
+                cursor: 'move', userSelect: 'none',
+                font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif',
+              },
+            },
+              h('span', { style: { color: C.brand, fontWeight: 700 } }, '涂装取点'),
+              h('button', { type: 'button', onPointerDown: stop, onClick: () => setMini(false), title: '展开', style: iconBtn }, '▢'),
+              h('button', {
+                type: 'button', onPointerDown: stop, title: '关闭',
+                onClick: () => { setMini(false); setOpen(false); }, style: iconBtn,
+              }, '×'),
+            );
+          }
+
           const left = pos ? pos.x : Math.max(24, window.innerWidth - 470);
           const top = pos ? pos.y : 96;
           return h('div', {
@@ -444,27 +485,18 @@ window.__ModuleLoader__.load({
           },
             h('div', {
               onPointerDown: startDrag, onPointerMove: moveDrag, onPointerUp: endDrag, onPointerCancel: endDrag,
-              style: {
-                display: 'flex', alignItems: 'center', gap: '8px',
-                padding: '6px 10px', borderBottom: `1px solid ${C.border}`,
-                cursor: 'move', userSelect: 'none',
-                font: '12px "Segoe UI","Microsoft YaHei",system-ui,sans-serif', color: C.muted,
-              },
+              style: chrome,
             },
               h('span', { style: { color: C.brand, fontWeight: 700 } }, '涂装取点'),
-              h('span', null, '拖动标题栏移动 · 右下角缩放'),
-              h('button', {
-                type: 'button',
-                onClick: () => setOpen(false),
-                style: {
-                  marginLeft: 'auto', border: 'none', background: 'transparent',
-                  color: C.muted, cursor: 'pointer', fontSize: '15px', lineHeight: 1,
-                },
-              }, '×'),
+              h('span', null, '拖动移动 · 右下角缩放'),
+              h('button', { type: 'button', onPointerDown: stop, onClick: () => setMini(true), title: '最小化', style: { ...iconBtn, marginLeft: 'auto' } }, '—'),
+              h('button', { type: 'button', onPointerDown: stop, onClick: () => setOpen(false), title: '关闭', style: iconBtn }, '×'),
             ),
             h(Panel),
           );
         }
+
+
 
         ctx.effect(() => ctx.slots.register({
           name: 'shell.overlay',
