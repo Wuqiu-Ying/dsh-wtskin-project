@@ -371,9 +371,21 @@ window.__ModuleLoader__.load({
         function FloatingPicker() {
           const [open, setOpen] = React.useState(false);
           const [mini, setMini] = React.useState(false);
-          const [pos, setPos] = React.useState(null);
+          const [pos, setPos] = React.useState(() => {
+            try {
+              const raw = localStorage.getItem('wtskin.panel.pos');
+              const parsed = raw ? JSON.parse(raw) : null;
+              if (parsed && Number.isFinite(parsed.x) && Number.isFinite(parsed.y)) return parsed;
+            } catch { /* ignore */ }
+            return null;
+          });
           const drag = React.useRef(null);
           const lastStamp = React.useRef(0);
+
+          React.useEffect(() => {
+            if (!pos) return;
+            try { localStorage.setItem('wtskin.panel.pos', JSON.stringify(pos)); } catch { /* ignore */ }
+          }, [pos]);
 
           // The only two triggers write WTSP/.open: the /wtspwds command and the
           // dsh_wtskin_picker tool. Reading the marker is silent — no command is
