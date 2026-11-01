@@ -1,15 +1,33 @@
 {
   "name": "dsh-wtskin-project",
-  "version": "2.1.0",
-  "description": "War Thunder user-skin studio for DSH (v2): mode preset, right-sidebar quad picker, final-pixel quad semantics, normal-map generation and self-checking exports.",
-  "keywords": ["dsh", "dsh-plugin", "deepseek-harness", "war-thunder", "skin", "camouflage", "uv"],
+  "version": "3.0.0",
+  "description": "War Thunder user-skin studio for DSH (v3): agent preset, floating quad picker, WTSP projects, final-pixel quads, normal maps and self-checking exports.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "war-thunder",
+    "skin",
+    "camouflage",
+    "uv"
+  ],
   "type": "module",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
     "./client": "./client/index.js"
   },
-  "files": ["lib", "preset", "client", "python", "presets", "assets", "cordis.patch.yml", "README.md", "CHANGELOG.md"],
+  "files": [
+    "lib",
+    "preset",
+    "client",
+    "python",
+    "presets",
+    "assets",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md"
+  ],
   "dependencies": {
     "@deepseek-ai/dsh-time-context": "0.2.1-rc.3",
     "@deepseek-ai/dsh-tool-ask-user": "0.2.1-rc.3",
@@ -19,11 +37,15 @@
     "@deepseek-ai/dsh-tools": "0.2.1-rc.3"
   },
   "dsh": {
-    "bundle": { "patch": "./cordis.patch.yml" },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-sidebar-right"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
     }
   },
   "scripts": {

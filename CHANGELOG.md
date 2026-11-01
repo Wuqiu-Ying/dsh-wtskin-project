@@ -1,5 +1,43 @@
 # Changelog
 
+## 3.0.0
+
+v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分。
+
+### Added
+
+- Agent 预设 **「战雷画涂装模式」**，经 `ctx.agentPresets.register()` 运行时注册，子插件以 `file://` 指向可加载的模块。
+- **取点悬浮窗**（`shell.overlay`）：标题栏拖动、右下角缩放、最小化、关闭；不再依赖右栏 tab。
+- `/wtspwds` 打开取点面板；`dsh_wtskin_picker` 成为模型侧触发，两者都经 `WTSP/.open` 时间戳。
+- `WTSP/<载具>_<名称>/` 工程布局：清洗、重名 `-2`、复用根目录、按会话工作区落盘。
+- 面板保存直接写 `project.json`，随后 `followup({content, source})` 唤醒模型。
+- `/wtskinp` 回归，支持 `vehicle` + `name` 直接建档。
+
+### Changed
+
+- 面板读写改走 `ctx.remote.workspaceFiles`（读）与内部命令 `wtskin-save`（写）。
+- 预设的注册、面板触发、工程路径全部以会话上下文为准。
+
+### Fixed
+
+- remote 返回 `{ ok, value }`：取 `entries` / `text` 前必须解包（之前面板永远读不到工程、标记恒为 0）。
+- 会话 cwd 用 `workingDirectory.ensure(agent)`，不再落到 profile 目录。
+- `followup()` 带消息内容；只 `inject` 不会唤醒模型。
+- 预设子插件行必须 `file://` 绝对 URL（裸包名与 Windows 路径都会 "never started"）。
+- `tool-todo` 必填 `allowParallelInProgress`。
+- 服务访问一律 inject 或 `ctx.get`，避免加载期崩溃。
+
+### Removed
+
+- 右栏 tab 面板与"自动打开/常驻小标签"方案。
+- 调试命令 `wtskin-diag`、`wtskin-whoami`（命令执行会写进会话日志）。
+
+### Known
+
+- `wtskin-save` 仍会出现在 `/` 菜单，隐藏它需要改成 Host Remote 服务。
+- 面板保存 → 写盘 → 唤醒模型的端到端链路尚未人工验证。
+
+
 ## 2.0.0
 
 v2 的目标：让「和 AI 一起做涂装」这件事真正闭环——坐标不再错、模型能看见结果、取点在 DSH 里完成。
