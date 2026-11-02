@@ -70,6 +70,69 @@ window.__ModuleLoader__.load({
 
     const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
+    /**
+     * War Thunder copies texture previews as TGA, which <img> cannot decode.
+     * Handles uncompressed and RLE true-colour (24/32 bit) and grayscale.
+     */
+    function decodeTga(buffer) {
+      const view = new DataView(buffer);
+      const u8 = new Uint8Array(buffer);
+      const idLength = view.getUint8(0);
+      const colorMapType = view.getUint8(1);
+      const imageType = view.getUint8(2);
+      if (colorMapType !== 0) throw new Error('TGA 调色板格式暂不支持');
+      const width = view.getUint16(12, true);
+      const height = view.getUint16(14, true);
+      const bpp = view.getUint8(16);
+      const descriptor = view.getUint8(17);
+      if (!width || !height) throw new Error('TGA 尺寸无效');
+      const bytesPerPixel = bpp / 8;
+      if (![1, 3, 4].includes(bytesPerPixel)) throw new Error(`TGA 位深不支持：${bpp}`);
+      const topOrigin = (descriptor & 0x20) !== 0;
+      const out = new Uint8ClampedArray(width * height * 4);
+      let p = 18 + idLength;
+
+      const put = (index, r, g, b, a) => {
+        const x = index % width;
+        const y = Math.floor(index / width);
+        const row = topOrigin ? y : height - 1 - y;
+        const dst = (row * width + x) * 4;
+        out[dst] = r; out[dst + 1] = g; out[dst + 2] = b; out[dst + 3] = a;
+      };
+      const readPixel = () => {
+        let r = 0; let g = 0; let b = 0; let a = 255;
+        if (bytesPerPixel === 4) { b = u8[p]; g = u8[p + 1]; r = u8[p + 2]; a = u8[p + 3]; }
+        else if (bytesPerPixel === 3) { b = u8[p]; g = u8[p + 1]; r = u8[p + 2]; }
+        else { r = g = b = u8[p]; }
+        p += bytesPerPixel;
+        return [r, g, b, a];
+      };
+
+      const total = width * height;
+      let i = 0;
+      if (imageType === 2 || imageType === 3) {
+        while (i < total) { const [r, g, b, a] = readPixel(); put(i++, r, g, b, a); }
+      } else if (imageType === 10 || imageType === 11) {
+        while (i < total) {
+          const header = u8[p];
+          p += 1;
+          const count = (header & 0x7f) + 1;
+          if (header & 0x80) {
+            const [r, g, b, a] = readPixel();
+            for (let n = 0; n < count && i < total; n += 1) put(i++, r, g, b, a);
+          } else {
+            for (let n = 0; n < count && i < total; n += 1) {
+              const [r, g, b, a] = readPixel();
+              put(i++, r, g, b, a);
+            }
+          }
+        }
+      } else {
+        throw new Error(`TGA 类型不支持：${imageType}`);
+      }
+      return { width, height, data: out };
+    }
+
     let openedOnce = false;
 
     function Panel() {
@@ -116,10 +179,16 @@ window.__ModuleLoader__.load({
         return () => window.clearInterval(timer);
       }, [sid, load]);
 
+      const isImageFile = (file) => {
+        const type = String((file && file.type) || '');
+        const name = String((file && file.name) || '');
+        return type.startsWith('image/') || /\.tga$/i.test(name) || /tga/i.test(type);
+      };
+
       const pickImage = () => {
         const input = document.createElement('input');
         input.type = 'file';
-        input.accept = 'image/*';
+        input.accept = 'image/*,.tga';
         input.addEventListener('change', () => {
           const file = input.files && input.files[0];
           if (file) useImage(file);
@@ -127,24 +196,48 @@ window.__ModuleLoader__.load({
         input.click();
       };
 
-      const useImage = (file) => {
-        if (!file || !String(file.type).startsWith('image/')) return;
-        const url = URL.createObjectURL(file);
-        const probe = new Image();
-        probe.onload = () => {
-          if (urlRef.current) URL.revokeObjectURL(urlRef.current);
-          urlRef.current = url;
-          setImage({ url, w: probe.naturalWidth, h: probe.naturalHeight });
-          setPoints([]);
-          setMode(false);
-          setStatus(`预览 ${probe.naturalWidth}×${probe.naturalHeight}，缩放 ×${(project ? project.width / probe.naturalWidth : 1).toFixed(2)}`);
-        };
-        probe.src = url;
+      const applyImage = (url, w, h) => {
+        if (urlRef.current && urlRef.current.startsWith('blob:')) URL.revokeObjectURL(urlRef.current);
+        urlRef.current = url;
+        setImage({ url, w, h });
+        setPoints([]);
+        setMode(false);
+        setStatus(`预览 ${w}×${h}，缩放 ×${(project ? project.width / w : 1).toFixed(2)}`);
+      };
+
+      const useImage = async (file) => {
+        if (!file) return;
+        if (!isImageFile(file)) {
+          setStatus(`不支持的文件类型：${file.type || file.name || '未知'}`);
+          return;
+        }
+        const name = String(file.name || '');
+        try {
+          if (/\.tga$/i.test(name) || /tga/i.test(String(file.type || ''))) {
+            const decoded = decodeTga(await file.arrayBuffer());
+            const canvas = document.createElement('canvas');
+            canvas.width = decoded.width;
+            canvas.height = decoded.height;
+            canvas.getContext('2d').putImageData(
+              new ImageData(decoded.data, decoded.width, decoded.height), 0, 0,
+            );
+            applyImage(canvas.toDataURL('image/png'), decoded.width, decoded.height);
+            setStatus(`TGA 已解码 ${decoded.width}×${decoded.height}，缩放 ×${(project ? project.width / decoded.width : 1).toFixed(2)}`);
+            return;
+          }
+          const url = URL.createObjectURL(file);
+          const probe = new Image();
+          probe.onload = () => applyImage(url, probe.naturalWidth, probe.naturalHeight);
+          probe.onerror = () => { URL.revokeObjectURL(url); setStatus(`图片解码失败：${name}`); };
+          probe.src = url;
+        } catch (error) {
+          setStatus(`读取失败：${String((error && error.message) || error)}`);
+        }
       };
 
       const onPaste = (event) => {
         const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
-        const item = items.find((entry) => entry.type.startsWith('image/'));
+        const item = items.find((entry) => entry.type.startsWith('image/') || /tga/i.test(entry.type));
         if (!item) return;
         const file = item.getAsFile();
         if (!file) return;
@@ -154,7 +247,7 @@ window.__ModuleLoader__.load({
 
       const onDrop = (event) => {
         const files = Array.from((event.dataTransfer && event.dataTransfer.files) || []);
-        const file = files.find((entry) => entry.type.startsWith('image/'));
+        const file = files.find((entry) => isImageFile(entry));
         if (!file) return;
         event.preventDefault();
         useImage(file);
