@@ -119,29 +119,51 @@ def _segments_cross(p1, p2, p3, p4):
     return (d1 * d2 < 0) and (d3 * d4 < 0)
 
 
-def validate_quad(quad):
-    """Check a quad without reordering it.
+def validate_polygon(points):
+    """Check a 3+ point polygon without reordering it.
 
-    The pair 0-1 is one edge and 2-3 the opposite edge; the chord runs between
-    their midpoints. Reordering the points would silently swap chord-wise and
-    span-wise edges, so the order is the user's (the picker shows the chord),
-    and only order mistakes that geometry can prove are reported.
+    Four-point panels keep the chord semantics (0-1 and 2-3 are the opposite
+    edges). Larger polygons exist for triangular or irregular wings, where the
+    chord is approximated by the bounding-box height.
     """
-    pts = [(float(x), float(y)) for x, y in quad]
+    pts = [(float(x), float(y)) for x, y in points]
+    n = len(pts)
+    if n < 3:
+        raise ValueError("polygon needs at least 3 points")
     warnings = []
-    if _segments_cross(pts[0], pts[1], pts[2], pts[3]) or _segments_cross(pts[1], pts[2], pts[3], pts[0]):
-        warnings.append("quad edges cross: the four points are not in perimeter order")
-    for a, b in ((pts[0], pts[1]), (pts[2], pts[3])):
+    for i in range(n):
+        a, b = pts[i], pts[(i + 1) % n]
         if math.hypot(b[0] - a[0], b[1] - a[1]) < 1:
-            warnings.append("quad has a zero-length edge")
-    v01 = (pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
-    v23 = (pts[3][0] - pts[2][0], pts[3][1] - pts[2][1])
-    n01 = math.hypot(*v01) or 1
-    n23 = math.hypot(*v23) or 1
-    cos = (v01[0] * v23[0] + v01[1] * v23[1]) / (n01 * n23)
-    if abs(cos) < 0.82:
-        warnings.append("edges 1-2 and 3-4 are not parallel: points 3-4 are probably not the opposite edge")
+            warnings.append(f"edge {i + 1}-{i + 2} has zero length")
+    # Self-intersection: non-adjacent edges must not cross.
+    for i in range(n):
+        a1, a2 = pts[i], pts[(i + 1) % n]
+        for j in range(i + 2, n):
+            if i == 0 and j == n - 1:
+                continue
+            b1, b2 = pts[j], pts[(j + 1) % n]
+            if _segments_cross(a1, a2, b1, b2):
+                warnings.append(f"edges {i + 1}-{i + 2} and {j + 1}-{j + 2} cross: the points are not in perimeter order")
+    if n == 4:
+        v01 = (pts[1][0] - pts[0][0], pts[1][1] - pts[0][1])
+        v23 = (pts[3][0] - pts[2][0], pts[3][1] - pts[2][1])
+        n01 = math.hypot(*v01) or 1
+        n23 = math.hypot(*v23) or 1
+        cos = (v01[0] * v23[0] + v01[1] * v23[1]) / (n01 * n23)
+        if abs(cos) < 0.82:
+            warnings.append("edges 1-2 and 3-4 are not parallel: points 3-4 are probably not the opposite edge")
     return pts, warnings
+
+
+def polygon_geometry(pts):
+    """Chord, centre and the two chord-edge midpoints."""
+    if len(pts) == 4:
+        return quad_geometry(pts)
+    xs = [p[0] for p in pts]
+    ys = [p[1] for p in pts]
+    centre = (sum(xs) / len(pts), sum(ys) / len(pts))
+    chord = max(ys) - min(ys)
+    return chord, centre, None, None
 
 
 def quad_geometry(pts):
@@ -155,8 +177,8 @@ def quad_geometry(pts):
 def _place(layer, width, height):
     """Composite one layer; returns (piece, position, stats)."""
     src = _load_image(os.path.expandvars(str(layer["image"])))
-    pts, warnings = validate_quad(layer["quad"])
-    chord, centre, le, te = quad_geometry(pts)
+    pts, warnings = validate_polygon(layer["quad"])
+    chord, centre, le, te = polygon_geometry(pts)
 
     if layer.get("flip"):
         src = src.transpose(Image.FLIP_LEFT_RIGHT)

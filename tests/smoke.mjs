@@ -225,7 +225,38 @@ try {
     action: 'create', vehicle: 'Q-5L', name: '霓虹夜航', data: { width: 512, height: 512 },
   });
   assert(second.includes('-2'), `a name collision must get a numeric suffix: ${second}`);
-  console.log('WTSP + panel save ok');
+
+  // arbitrary polygons: 5 points, quadHeight sizing, colour and edge names survive
+  const polyQuad = [[40, 40], [80, 40], [80, 80], [60, 90], [40, 80]];
+  const polySaved = await save.handler({
+    rawInput: JSON.stringify({
+      dir: 'WTSP/Q-5L_霓虹夜航',
+      faces: [{ id: 'wing_poly', quad: polyQuad, size: 'quadHeight', color: '#aabbcc', edgeNames: ['a', 'b', 'c', 'd', 'e'] }],
+    }),
+    agent: { id: 'a' },
+  });
+  assert(polySaved.kind === 'success', `polygon save failed: ${polySaved.text}`);
+  const polyProject = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
+  const polyLayer = polyProject.layers.find((layer) => layer.id === 'wing_poly');
+  assert(polyLayer && polyLayer.quad.length === 5, 'polygon points were not stored');
+  assert(polyLayer.color === '#aabbcc' && polyLayer.edgeNames.length === 5, 'polygon metadata missing');
+
+  const polyDir = path.join(dir, 'poly');
+  await tools.get('dsh_wtskin_project').execute({
+    dir: polyDir, action: 'create',
+    data: { width: 256, height: 256, base: { fill: [10, 10, 10], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'poly_c', dds: false, preview: false, blk: false } },
+  });
+  await tools.get('dsh_wtskin_layer').execute({
+    dir: polyDir, action: 'add',
+    layer: { id: 'penta', image: charFile, quad: [[32, 32], [224, 32], [224, 224], [32, 224], [32, 128]], size: 'quadHeight' },
+  });
+  await tools.get('dsh_wtskin_export').execute({ dir: polyDir });
+  const polyPng = path.join(polyDir, 'out', 'poly_c.png');
+  const inside = pixel(polyPng, 128, 64);
+  const outside = pixel(polyPng, 8, 8);
+  assert(inside[0] > 200, `polygon should cover its interior: ${inside}`);
+  assert(outside[0] < 40, `polygon should not cover the corner: ${outside}`);
+  console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp
   const noBrowser = makeContext({ cwd });
