@@ -35,10 +35,8 @@ window.__ModuleLoader__.load({
 
     const EDGE_COLORS = ['#22d3ee', '#f59e0b', '#a78bfa', '#34d399', '#f472b6', '#60a5fa', '#fbbf24', '#fb7185'];
     const FACE_COLORS = ['#0ea5e9', '#22c55e', '#eab308', '#ef4444', '#a855f7', '#14b8a6', '#f97316', '#ec4899'];
-    const DEFAULT_EDGE_NAMES = ['机翼前缘', '机身侧', '翼尖侧', '机翼后缘'];
-
     const edgeColor = (i) => EDGE_COLORS[i % EDGE_COLORS.length];
-    const edgeName = (names, i) => names[i] || DEFAULT_EDGE_NAMES[i] || `边 ${i + 1}`;
+    const edgeName = (names, i) => names[i] || `边_${i + 1}`;
 
     const sessionId = () => {
       try {
