@@ -137,6 +137,57 @@ window.__ModuleLoader__.load({
       return type.startsWith('image/') || /\.tga$/i.test(name) || /tga/i.test(type);
     };
 
+    // ---- local persistence ------------------------------------------------
+    // The project folder keeps panel-state.json (image path + face edits, written
+    // by the save bridge). The browser also keeps a downscaled preview in
+    // IndexedDB so the working image survives a restart even when the original
+    // path is outside the workspace or no longer readable.
+    const DB_NAME = 'dsh-wtskin';
+    const openDb = () => new Promise((resolve, reject) => {
+      const request = indexedDB.open(DB_NAME, 1);
+      request.onupgradeneeded = () => {
+        if (!request.result.objectStoreNames.contains('panel')) request.result.createObjectStore('panel');
+      };
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error);
+    });
+    const dbGet = async (key) => {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('panel', 'readonly');
+        const request = tx.objectStore('panel').get(key);
+        request.onsuccess = () => resolve(request.result || null);
+        request.onerror = () => reject(request.error);
+      });
+    };
+    const dbPut = async (key, value) => {
+      const db = await openDb();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction('panel', 'readwrite');
+        tx.objectStore('panel').put(value, key);
+        tx.oncomplete = () => resolve(true);
+        tx.onerror = () => reject(tx.error);
+      });
+    };
+    const makePreview = (url, width, height) => new Promise((resolve) => {
+      try {
+        const max = 1400;
+        const scale = Math.min(1, max / Math.max(width, height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(width * scale));
+        canvas.height = Math.max(1, Math.round(height * scale));
+        const img = new Image();
+        img.onload = () => {
+          try {
+            canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+          } catch { resolve(null); }
+        };
+        img.onerror = () => resolve(null);
+        img.src = url;
+      } catch { resolve(null); }
+    });
+
     const btn = (primary) => ({
       height: '28px',
       padding: '0 10px',
@@ -330,6 +381,10 @@ window.__ModuleLoader__.load({
           const line = `/wtskin-save ${JSON.stringify({
             dir,
             faces: [{ id: name, quad, size: quad.length === 4 ? 'chord' : 'quadHeight', color, edgeNames }],
+            state: {
+              image: image ? { name: image.name, path: image.path, width: image.w, height: image.h } : null,
+              faces: [{ id: name, points: quad, edgeNames, color }],
+            },
           })}`;
           const out = await api.remote.commands.execute(id, line, []);
           const result = out && out.result;
@@ -347,6 +402,59 @@ window.__ModuleLoader__.load({
         }
       };
 
+      // ---- persistence -----------------------------------------------------
+      React.useEffect(() => {
+        if (!dir) return () => {};
+        let cancelled = false;
+        (async () => {
+          try {
+            const saved = await dbGet(dir);
+            if (cancelled || !saved) return;
+            if (saved.image && saved.image.dataUrl) {
+              setImage({
+                url: saved.image.dataUrl, w: saved.image.width, h: saved.image.height,
+                name: saved.image.name || '', path: saved.image.path || '', dataUrl: saved.image.dataUrl,
+              });
+              setStatus(`已恢复上次的图片：${saved.image.name || '预览'}`);
+            }
+            if (Array.isArray(saved.points)) setPoints(saved.points);
+            if (Array.isArray(saved.names)) setNames(saved.names);
+            if (saved.editing) setEditing(saved.editing);
+            if (saved.faceName) setFaceName(saved.faceName);
+          } catch { /* IndexedDB is unavailable in some sandboxes */ }
+        })();
+        return () => { cancelled = true; };
+      }, [dir]);
+
+      React.useEffect(() => {
+        if (!image || image.dataUrl) return () => {};
+        let cancelled = false;
+        (async () => {
+          const dataUrl = await makePreview(image.url, image.w, image.h);
+          if (!cancelled && dataUrl) setImage((cur) => (cur ? { ...cur, dataUrl } : cur));
+        })();
+        return () => { cancelled = true; };
+      }, [image]);
+
+      React.useEffect(() => {
+        if (!dir) return () => {};
+        const timer = window.setTimeout(() => {
+          try {
+            void dbPut(dir, {
+              image: image
+                ? { name: image.name, path: image.path, width: image.w, height: image.h, dataUrl: image.dataUrl }
+                : null,
+              points,
+              names,
+              editing,
+              faceName,
+              at: new Date().toISOString(),
+            });
+          } catch { /* ignore */ }
+        }, 700);
+        return () => window.clearTimeout(timer);
+      }, [dir, image, points, names, editing, faceName]);
+
       // ---- image -----------------------------------------------------------
       const pickImage = () => {
         const input = document.createElement('input');
@@ -359,10 +467,10 @@ window.__ModuleLoader__.load({
         input.click();
       };
 
-      const applyImage = (url, w, hgt) => {
+      const applyImage = (url, w, hgt, meta = {}) => {
         if (urlRef.current && urlRef.current.startsWith('blob:')) URL.revokeObjectURL(urlRef.current);
         urlRef.current = url;
-        setImage({ url, w, h: hgt });
+        setImage({ url, w, h: hgt, name: meta.name || '', path: meta.path || '', dataUrl: '' });
         setPoints([]);
         setNames([]);
         setEditing(null);
@@ -380,13 +488,13 @@ window.__ModuleLoader__.load({
             canvas.width = decoded.width;
             canvas.height = decoded.height;
             canvas.getContext('2d').putImageData(new ImageData(decoded.data, decoded.width, decoded.height), 0, 0);
-            applyImage(canvas.toDataURL('image/png'), decoded.width, decoded.height);
+            applyImage(canvas.toDataURL('image/png'), decoded.width, decoded.height, { name, path: file.path || '' });
             setStatus(`TGA 已解码 ${decoded.width}×${decoded.height}`);
             return;
           }
           const url = URL.createObjectURL(file);
           const probe = new Image();
-          probe.onload = () => applyImage(url, probe.naturalWidth, probe.naturalHeight);
+          probe.onload = () => applyImage(url, probe.naturalWidth, probe.naturalHeight, { name, path: file.path || '' });
           probe.onerror = () => { URL.revokeObjectURL(url); setStatus(`图片解码失败：${name}`); };
           probe.src = url;
         } catch (error) {
