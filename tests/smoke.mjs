@@ -217,15 +217,10 @@ try {
     agent: { id: 'a' },
   });
   assert(saved.kind === 'success', `panel save failed: ${saved.text}`);
-  assert(panel.followedCount() === 1, 'the wake must call followup once');
-  assert(panel.followupText().includes('面板刚保存'), 'the wake must carry the save summary');
-  // The harness stores followup(message) verbatim as a user/message event and the
-  // restore boundary requires an identified message: id, role, content, source.
-  const wake = panel.followupMessage();
-  assert(typeof wake?.id === 'string' && wake.id.length > 0, 'the wake message must carry a message id');
-  assert(wake?.role === 'user', 'the wake message must carry role "user"');
-  assert(Array.isArray(wake?.content) && wake.content.length > 0, 'the wake message must carry content');
-  assert(wake?.source?.kind === 'user', 'the wake message must carry a user source');
+  // Saving must not wake the model any more: the faces file is the handoff.
+  assert(panel.followedCount() === 0, 'a panel save must not wake the model');
+  const facesDoc = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'faces.json'), 'utf8'));
+  assert(facesDoc.faces.length === 1 && facesDoc.faces[0].id === 'wing_l', 'faces.json must mirror the saved face');
   const savedProject = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
   assert(savedProject.layers.length === 1 && savedProject.layers[0].id === 'wing_l', 'panel save missed the layer');
   assert(savedProject.layers[0].image === '', 'a panel-measured layer starts without art');
@@ -249,6 +244,21 @@ try {
   const polyLayer = polyProject.layers.find((layer) => layer.id === 'wing_poly');
   assert(polyLayer && polyLayer.quad.length === 5, 'polygon points were not stored');
   assert(polyLayer.color === '#aabbcc' && polyLayer.edgeNames.length === 5, 'polygon metadata missing');
+
+  const flushed = await save.handler({
+    rawInput: JSON.stringify({ dir: 'WTSP/Q-5L_霓虹夜航', faces: [], remove: [], flush: true }),
+    agent: { id: 'a' },
+  });
+  assert(flushed.kind === 'success' && JSON.parse(flushed.text).facesPath.endsWith('faces.json'), 'flush must report the faces path');
+
+  const deleted = await save.handler({
+    rawInput: JSON.stringify({ dir: 'WTSP/Q-5L_霓虹夜航', faces: [], remove: ['wing_l'] }),
+    agent: { id: 'a' },
+  });
+  assert(deleted.kind === 'success' && JSON.parse(deleted.text).removed.includes('wing_l'), 'delete must remove the face');
+  const afterDelete = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
+  assert(!afterDelete.layers.some((layer) => layer.id === 'wing_l'), 'deleted face still in project.json');
+  assert(panel.followedCount() === 0, 'delete must not wake the model');
 
   const polyDir = path.join(dir, 'poly');
   await tools.get('dsh_wtskin_project').execute({

@@ -221,7 +221,16 @@ window.__ModuleLoader__.load({
       const movedRef = React.useRef(false);
 
       const layers = (project && project.layers) || [];
-      const faceColorOf = (layer, index) => layer.color || FACE_COLORS[index % FACE_COLORS.length];
+      const usedColors = new Set(layers.filter((layer) => layer.color).map((layer) => String(layer.color).toLowerCase()));
+      const faceColorOf = (layer, index) => {
+        if (layer.color) return layer.color;
+        const free = FACE_COLORS.find((color) => !usedColors.has(color.toLowerCase()));
+        return free || FACE_COLORS[index % FACE_COLORS.length];
+      };
+      const nextFaceColor = () => {
+        const free = FACE_COLORS.find((color) => !usedColors.has(color.toLowerCase()));
+        return free || FACE_COLORS[layers.length % FACE_COLORS.length];
+      };
 
       const load = React.useCallback(async (preferred) => {
         const id = sessionId();
@@ -376,7 +385,7 @@ window.__ModuleLoader__.load({
         if (points.length < 3) { setStatus('至少需要 3 个点'); return; }
         const name = (faceName.trim() || 'face_1');
         const quad = points.map((p) => [Math.round(p.x), Math.round(p.y)]);
-        const color = editing?.color || FACE_COLORS[layers.length % FACE_COLORS.length];
+        const color = editing?.color || nextFaceColor();
         const edgeNames = quad.map((_, i) => edgeName(names, i));
         setBusy(true);
         try {
@@ -392,7 +401,7 @@ window.__ModuleLoader__.load({
           const result = out && out.result;
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '保存失败');
           const info = JSON.parse(result.text);
-          setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）`);
+          setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）。面数据已写入 faces.json，用「提交面数据」查看路径`);
           setEditing(null);
           setPoints([]);
           setNames([]);
@@ -469,6 +478,44 @@ window.__ModuleLoader__.load({
         }, 700);
         return () => window.clearTimeout(timer);
       }, [dir, image, points, names, editing, faceName, view]);
+
+      const removeFace = (layer) => async () => {
+        const id = sessionId();
+        if (!id || !dir) return;
+        setBusy(true);
+        try {
+          const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [layer.id] })}`;
+          const out = await api.remote.commands.execute(id, line, []);
+          const result = out && out.result;
+          if (!result || result.kind !== 'success') throw new Error((result && result.text) || '删除失败');
+          setStatus(`已删除 ${layer.id}`);
+          if (editing && editing.id === layer.id) { setEditing(null); setPoints([]); setNames([]); }
+          await load(dir);
+        } catch (error) {
+          setStatus(`删除失败：${String((error && error.message) || error)}`);
+        } finally {
+          setBusy(false);
+        }
+      };
+
+      const submitFaces = async () => {
+        const id = sessionId();
+        if (!id || !dir || !project) return;
+        setBusy(true);
+        try {
+          const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [], flush: true })}`;
+          const out = await api.remote.commands.execute(id, line, []);
+          const result = out && out.result;
+          if (!result || result.kind !== 'success') throw new Error((result && result.text) || '写入失败');
+          const info = JSON.parse(result.text);
+          setStatus(`面数据已写入：${info.facesPath}。把它拖进输入框发送给模型即可`);
+          try { await navigator.clipboard.writeText(info.facesPath); } catch { /* ignore */ }
+        } catch (error) {
+          setStatus(`写入失败：${String((error && error.message) || error)}`);
+        } finally {
+          setBusy(false);
+        }
+      };
 
       // ---- image -----------------------------------------------------------
       const pickImage = () => {
@@ -575,6 +622,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', onClick: startNewFace, style: btn(false) }, '新建面'),
           h('button', { type: 'button', onClick: () => { setPoints([]); setNames([]); setStatus(''); }, style: btn(false) }, '清空点'),
           h('button', { type: 'button', onClick: () => fitView(true), style: btn(false) }, '适应窗口'),
+          h('button', { type: 'button', onClick: submitFaces, disabled: busy || layers.length === 0, style: btn(false) }, '提交面数据'),
           h('span', { style: { marginLeft: 'auto', color: C.muted, alignSelf: 'center' } }, `${points.length} 点`),
         ) : null,
 
@@ -711,6 +759,10 @@ window.__ModuleLoader__.load({
                 }, layer.id),
                 h('span', { style: { width: '18px', height: '12px', background: color, border: '1px solid rgba(0,0,0,.35)', borderRadius: '2px' } }),
                 h('span', { style: { color: C.muted, fontSize: '10.5px' } }, `${(layer.quad || []).length} 点`),
+                h('button', {
+                  type: 'button', onClick: removeFace(layer), title: '删除此面',
+                  style: { ...btn(false), height: '20px', padding: '0 5px', fontSize: '10.5px', color: C.bad },
+                }, '删除此面'),
               );
             }),
         ),
