@@ -188,6 +188,15 @@ window.__ModuleLoader__.load({
       } catch { resolve(null); }
     });
 
+    /** commands.execute answers {ok, value}; older builds answer the result. */
+    const commandResult = (answered) => {
+      if (answered && typeof answered === 'object' && 'ok' in answered) {
+        if (!answered.ok) throw new Error(answered.error?.message || answered.error?.code || 'command failed');
+        return answered.value;
+      }
+      return answered;
+    };
+
     const btn = (primary) => ({
       height: '28px',
       padding: '0 10px',
@@ -398,14 +407,14 @@ window.__ModuleLoader__.load({
             },
           })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = out && out.result;
+          const result = commandResult(out);
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '保存失败');
           const info = JSON.parse(result.text);
-          setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）。面数据已写入 faces.json，用「提交面数据」查看路径`);
           setEditing(null);
           setPoints([]);
           setNames([]);
           await load(dir);
+          setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）。面数据已写入 faces.json，用「提交面数据」查看路径`);
         } catch (error) {
           setStatus(`保存失败：${String((error && error.message) || error)}`);
         } finally {
@@ -486,11 +495,11 @@ window.__ModuleLoader__.load({
         try {
           const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [layer.id] })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = out && out.result;
+          const result = commandResult(out);
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '删除失败');
-          setStatus(`已删除 ${layer.id}`);
           if (editing && editing.id === layer.id) { setEditing(null); setPoints([]); setNames([]); }
           await load(dir);
+          setStatus(`已删除 ${layer.id}`);
         } catch (error) {
           setStatus(`删除失败：${String((error && error.message) || error)}`);
         } finally {
@@ -505,9 +514,10 @@ window.__ModuleLoader__.load({
         try {
           const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [], flush: true })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = out && out.result;
+          const result = commandResult(out);
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '写入失败');
           const info = JSON.parse(result.text);
+          await load(dir);
           setStatus(`面数据已写入：${info.facesPath}。把它拖进输入框发送给模型即可`);
           try { await navigator.clipboard.writeText(info.facesPath); } catch { /* ignore */ }
         } catch (error) {
