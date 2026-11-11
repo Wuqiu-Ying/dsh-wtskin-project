@@ -251,9 +251,11 @@ window.__ModuleLoader__.load({
       }, [sid, load]);
 
       // ---- view ------------------------------------------------------------
-      const fitView = React.useCallback(() => {
+      const skipFit = React.useRef(false);
+      const fitView = React.useCallback((force) => {
         const frame = frameRef.current;
         if (!frame || !image) return;
+        if (skipFit.current && !force) { skipFit.current = false; return; }
         const scale = Math.min(frame.clientWidth / image.w, frame.clientHeight / image.h, 1);
         setView({
           scale,
@@ -262,7 +264,7 @@ window.__ModuleLoader__.load({
         });
       }, [image]);
 
-      React.useEffect(() => { fitView(); }, [fitView]);
+      React.useEffect(() => { fitView(); }, [fitView, project]);
 
       React.useEffect(() => {
         const frame = frameRef.current;
@@ -411,16 +413,28 @@ window.__ModuleLoader__.load({
             const saved = await dbGet(dir);
             if (cancelled || !saved) return;
             if (saved.image && saved.image.dataUrl) {
+              // The stored width/height are the ORIGINAL texture dimensions; the
+              // preview is stretched into that same coordinate space so the
+              // points, edges and faces stay pinned to the image.
+              skipFit.current = true;
               setImage({
                 url: saved.image.dataUrl, w: saved.image.width, h: saved.image.height,
                 name: saved.image.name || '', path: saved.image.path || '', dataUrl: saved.image.dataUrl,
               });
+              if (saved.view && Number.isFinite(saved.view.scale)) setView(saved.view);
               setStatus(`已恢复上次的图片：${saved.image.name || '预览'}`);
             }
-            if (Array.isArray(saved.points)) setPoints(saved.points);
-            if (Array.isArray(saved.names)) setNames(saved.names);
-            if (saved.editing) setEditing(saved.editing);
-            if (saved.faceName) setFaceName(saved.faceName);
+            const inside = !saved.image || !Array.isArray(saved.points) || saved.points.every((p) =>
+              Number.isFinite(p.x) && Number.isFinite(p.y) && p.x >= 0 && p.y >= 0
+              && p.x <= saved.image.width && p.y <= saved.image.height);
+            if (inside) {
+              if (Array.isArray(saved.points)) setPoints(saved.points);
+              if (Array.isArray(saved.names)) setNames(saved.names);
+              if (saved.editing) setEditing(saved.editing);
+              if (saved.faceName) setFaceName(saved.faceName);
+            } else {
+              setStatus('已恢复图片；上次的点超出图片范围，已忽略');
+            }
           } catch { /* IndexedDB is unavailable in some sandboxes */ }
         })();
         return () => { cancelled = true; };
@@ -448,12 +462,13 @@ window.__ModuleLoader__.load({
               names,
               editing,
               faceName,
+              view,
               at: new Date().toISOString(),
             });
           } catch { /* ignore */ }
         }, 700);
         return () => window.clearTimeout(timer);
-      }, [dir, image, points, names, editing, faceName]);
+      }, [dir, image, points, names, editing, faceName, view]);
 
       // ---- image -----------------------------------------------------------
       const pickImage = () => {
@@ -559,6 +574,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', onClick: pickImage, style: btn(false) }, image ? '换图片' : '选择图片'),
           h('button', { type: 'button', onClick: startNewFace, style: btn(false) }, '新建面'),
           h('button', { type: 'button', onClick: () => { setPoints([]); setNames([]); setStatus(''); }, style: btn(false) }, '清空点'),
+          h('button', { type: 'button', onClick: () => fitView(true), style: btn(false) }, '适应窗口'),
           h('span', { style: { marginLeft: 'auto', color: C.muted, alignSelf: 'center' } }, `${points.length} 点`),
         ) : null,
 

@@ -29,11 +29,13 @@ function makeContext({ browser = false, cwd } = {}) {
   const injected = [];
   let followed = 0;
   let followupText = '';
+  let followupMessage;
   const agents = {
     get: () => ({
       inject: (text) => { injected.push(String(text)); },
       followup: (message) => {
         followed += 1;
+        followupMessage = message;
         followupText = String(message?.content?.[0]?.text ?? '');
       },
     }),
@@ -68,7 +70,7 @@ function makeContext({ browser = false, cwd } = {}) {
     },
   };
   apply(ctx, { pythonPath: python });
-  return { ctx, tools, commands, presets, injected, followedCount: () => followed, followupText: () => followupText };
+  return { ctx, tools, commands, presets, injected, followedCount: () => followed, followupText: () => followupText, followupMessage: () => followupMessage };
 }
 
 function pixel(file, x, y) {
@@ -217,6 +219,13 @@ try {
   assert(saved.kind === 'success', `panel save failed: ${saved.text}`);
   assert(panel.followedCount() === 1, 'the wake must call followup once');
   assert(panel.followupText().includes('面板刚保存'), 'the wake must carry the save summary');
+  // The harness stores followup(message) verbatim as a user/message event and the
+  // restore boundary requires an identified message: id, role, content, source.
+  const wake = panel.followupMessage();
+  assert(typeof wake?.id === 'string' && wake.id.length > 0, 'the wake message must carry a message id');
+  assert(wake?.role === 'user', 'the wake message must carry role "user"');
+  assert(Array.isArray(wake?.content) && wake.content.length > 0, 'the wake message must carry content');
+  assert(wake?.source?.kind === 'user', 'the wake message must carry a user source');
   const savedProject = JSON.parse(await readFile(path.join(cwd, 'WTSP', 'Q-5L_霓虹夜航', 'project.json'), 'utf8'));
   assert(savedProject.layers.length === 1 && savedProject.layers[0].id === 'wing_l', 'panel save missed the layer');
   assert(savedProject.layers[0].image === '', 'a panel-measured layer starts without art');
