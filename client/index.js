@@ -253,6 +253,8 @@ window.__ModuleLoader__.load({
       const [names, setNames] = React.useState([]);
       const [editing, setEditing] = React.useState(null); // { id, color } | null
       const [faceName, setFaceName] = React.useState('face_1');
+      const [rotate180, setRotate180] = React.useState(false);
+      const [factor, setFactor] = React.useState('0.85');
       const [status, setStatus] = React.useState('');
       const [busy, setBusy] = React.useState(false);
       const [renaming, setRenaming] = React.useState(-1);
@@ -439,6 +441,8 @@ window.__ModuleLoader__.load({
         setEditing(null);
         setPoints([]);
         setNames([]);
+        setRotate180(false);
+        setFactor('0.85');
         setFaceName(`face_${layers.length + 1}`);
         setStatus('');
       };
@@ -447,6 +451,8 @@ window.__ModuleLoader__.load({
         if (!layer) return;
         const quad = (layer.quad || []).map(([x, y]) => ({ x: Number(x), y: Number(y) }));
         setEditing({ id: layer.id, color: faceColorOf(layer, index) });
+        setRotate180(Boolean(layer.rotate180));
+        setFactor(String(layer.factor ?? 1));
         setPoints(quad);
         setNames(Array.isArray(layer.edgeNames) ? layer.edgeNames.slice() : []);
         setFaceName(layer.id);
@@ -465,7 +471,10 @@ window.__ModuleLoader__.load({
         try {
           const line = `/wtskin-save ${asciiJson({
             dir,
-            faces: [{ id: name, quad, size: quad.length === 4 ? 'chord' : 'quadHeight', color, edgeNames }],
+            faces: [{
+              id: name, quad, size: quad.length === 4 ? 'chord' : 'quadHeight', color, edgeNames,
+              rotate180, factor: Number(factor) || 1,
+            }],
             state: {
               image: image ? { name: image.name, path: image.path, width: image.w, height: image.h } : null,
               faces: [{ id: name, points: quad, edgeNames, color }],
@@ -815,6 +824,23 @@ window.__ModuleLoader__.load({
                 opacity: busy || points.length < 3 ? 0.5 : 1,
               },
             }, busy ? '保存中…' : '保存'),
+          )
+          : null,
+
+        project
+          ? h('div', { style: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', color: C.muted, fontSize: '11.5px' } },
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' } },
+              h('input', { type: 'checkbox', checked: rotate180, onChange: (event) => setRotate180(event.target.checked) }),
+              '旋转 180°（上翼面在贴图里常是倒的）',
+            ),
+            h('label', { style: { display: 'flex', alignItems: 'center', gap: '4px' } },
+              '弦长占比',
+              h('input', {
+                type: 'number', min: '0.1', max: '4', step: '0.05', value: factor,
+                onChange: (event) => setFactor(event.target.value),
+                style: { width: '58px', height: '22px', padding: '0 4px', borderRadius: '4px', border: `1px solid ${C.border}`, background: C.panel2, color: C.text, font: 'inherit' },
+              }),
+            ),
           )
           : null,
 
