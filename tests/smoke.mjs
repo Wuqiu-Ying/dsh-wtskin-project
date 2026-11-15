@@ -290,6 +290,25 @@ try {
   try { await readFile(path.join(cropDir, 'out', 'crop_c.png')); } catch { cropExists = false; }
   assert(cropExists, 'crop export wrote no texture');
 
+  const installDir = path.join(dir, 'install');
+  await tools.get('dsh_wtskin_project').execute({
+    dir: installDir, action: 'create', vehicle: 'q_5l',
+    data: { width: 256, height: 256, base: { fill: [10, 10, 10], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'q_5l_c', dds: true, preview: false, blk: false } },
+  });
+  await tools.get('dsh_wtskin_layer').execute({
+    dir: installDir, action: 'add',
+    layer: { id: 'bg', image: charFile, quad: [[0, 0], [256, 0], [256, 256], [0, 256]], size: 'chord' },
+  });
+  await tools.get('dsh_wtskin_export').execute({ dir: installDir });
+  const userskins = path.join(dir, 'UserSkins');
+  const installed = JSON.parse(await tools.get('dsh_wtskin_install').execute({
+    dir: installDir, userSkinsDir: userskins, folder: 'TestSkin',
+  }));
+  assert(installed.blk.endsWith('q_5l.blk'), `blk must be named after the vehicle model: ${installed.blk}`);
+  const blkText = await readFile(installed.blk, 'utf8');
+  assert(blkText.includes('from:t="q_5l_c*"') && blkText.includes('to:t="q_5l_c.dds"'), `blk entries wrong: ${blkText}`);
+  await readFile(installed.dds);
+
   console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp
