@@ -205,6 +205,18 @@ def _place(layer, width, height):
         box_h = min(bh, src.height - top)
         src = src.crop((left, top, left + box_w, top + box_h)).resize((bw, bh), Image.LANCZOS)
         x0, y0 = bx0, by0
+        target = src.height
+    elif size_mode == "cover":
+        # Fill the quad's bounding box: scale to cover, crop the overflow.
+        xs = [p[0] for p in pts]
+        ys = [p[1] for p in pts]
+        bw = max(4, int(round(max(xs) - min(xs))))
+        bh = max(4, int(round(max(ys) - min(ys))))
+        scale = max(bw / src.width, bh / src.height)
+        src = src.resize((max(1, int(round(src.width * scale))), max(1, int(round(src.height * scale)))), Image.LANCZOS)
+        x0 = int(round((min(xs) + max(xs)) / 2 - src.width / 2))
+        y0 = int(round((min(ys) + max(ys)) / 2 - src.height / 2))
+        target = src.height
     else:
         if size_mode == "chord":
             target = chord * factor
