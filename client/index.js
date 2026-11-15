@@ -58,9 +58,19 @@ window.__ModuleLoader__.load({
       return answered;
     };
 
+    /** Command payloads travel through a line channel that mangled non-ASCII
+     *  text (a Chinese face name arrived as replacement characters), so escape
+     *  everything outside ASCII; JSON.parse restores it on the Host side. */
+    const asciiJson = (value) => JSON.stringify(value).replace(/[^\x00-\x7f]/g,
+      (ch) => `\\u${ch.charCodeAt(0).toString(16).padStart(4, '0')}`);
+
     const listDirs = async (sid, dir) => {
       const listing = unwrap(await api.remote.workspaceFiles.list(sid, dir, new AbortController().signal));
-      return (listing.entries || []).filter((entry) => entry.type === 'directory').map((entry) => `${dir}/${entry.name}`);
+      const stamp = (entry) => Number(entry.modifiedAt ?? entry.mtime ?? entry.updatedAt ?? entry.modified ?? 0) || 0;
+      return (listing.entries || [])
+        .filter((entry) => entry.type === 'directory')
+        .sort((a, b) => stamp(b) - stamp(a))
+        .map((entry) => `${dir}/${entry.name}`);
     };
 
     const readProject = async (sid, dir) => {
@@ -248,7 +258,13 @@ window.__ModuleLoader__.load({
         try {
           const dirs = await listDirs(id, 'WTSP');
           setProjects(dirs);
-          const next = preferred || dirs[0] || '';
+          let active = '';
+          try {
+            const file = unwrap(await api.remote.workspaceFiles.read(id, 'WTSP/.active', {}, new AbortController().signal));
+            const text = String(file.text || '').trim();
+            if (text) active = text.split('\\').join('/');
+          } catch { /* no active project recorded yet */ }
+          const next = preferred || (dirs.includes(active) ? active : '') || dirs[0] || '';
           setDir(next);
           if (!next) { setProject(null); setStatus('WTSP 里还没有工程，先让模型建档'); return; }
           setProject(await readProject(id, next));
@@ -398,7 +414,7 @@ window.__ModuleLoader__.load({
         const edgeNames = quad.map((_, i) => edgeName(names, i));
         setBusy(true);
         try {
-          const line = `/wtskin-save ${JSON.stringify({
+          const line = `/wtskin-save ${asciiJson({
             dir,
             faces: [{ id: name, quad, size: quad.length === 4 ? 'chord' : 'quadHeight', color, edgeNames }],
             state: {
@@ -413,7 +429,8 @@ window.__ModuleLoader__.load({
           setEditing(null);
           setPoints([]);
           setNames([]);
-          await load(dir);
+          if (info.project) setProject(info.project);
+          else await load(dir);
           setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）。面数据已写入 faces.json，用「提交面数据」查看路径`);
         } catch (error) {
           setStatus(`保存失败：${String((error && error.message) || error)}`);
@@ -493,12 +510,14 @@ window.__ModuleLoader__.load({
         if (!id || !dir) return;
         setBusy(true);
         try {
-          const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [layer.id] })}`;
+          const line = `/wtskin-save ${asciiJson({ dir, faces: [], remove: [layer.id] })}`;
           const out = await api.remote.commands.execute(id, line, []);
           const result = commandResult(out);
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '删除失败');
           if (editing && editing.id === layer.id) { setEditing(null); setPoints([]); setNames([]); }
-          await load(dir);
+          const info = JSON.parse(result.text);
+          if (info.project) setProject(info.project);
+          else await load(dir);
           setStatus(`已删除 ${layer.id}`);
         } catch (error) {
           setStatus(`删除失败：${String((error && error.message) || error)}`);
@@ -512,7 +531,7 @@ window.__ModuleLoader__.load({
         if (!id || !dir || !project) return;
         setBusy(true);
         try {
-          const line = `/wtskin-save ${JSON.stringify({ dir, faces: [], remove: [], flush: true })}`;
+          const line = `/wtskin-save ${asciiJson({ dir, faces: [], remove: [], flush: true })}`;
           const out = await api.remote.commands.execute(id, line, []);
           const result = commandResult(out);
           if (!result || result.kind !== 'success') throw new Error((result && result.text) || '写入失败');
