@@ -368,3 +368,16 @@ agent.inject(text) + agent.followup()
 | — | 保存后唤醒模型用 `followup({ content, source })`；只 `inject` 不会唤醒 |
 
 命令面：`/wtskinp`（开始流程）、`/wtspwds`（开面板）、`wtskin-save`（内部保存通道，暂时无法从 `/` 菜单隐藏）。
+
+---
+
+## 13. 后续变更（2026-11-15）
+
+| 主题 | 现状 |
+| --- | --- |
+| 面 | 任意 3–64 点多边形（`quad` 数组），边名/颜色随面保存；4 点仍走弦长语义，多于 4 点用包围盒高度 |
+| 尺寸模式 | 新增 `crop`（源图 1:1 取块，按源图/画布比例换算）与 `cover`（铺满包围盒） |
+| 面板 | 左键加点、右键删点、拖点、滚轮缩放、中键平移、旋转 180°、弦长占比、删除此面 |
+| 保存 | 不再唤醒模型；写 `project.json` + `faces.json`，用户点「提交面数据」后自行上传，模型 `dsh_wtskin_import` 导入 |
+| 交付 | `dsh_wtskin_install` 复制 DDS 到 `UserSkins/<文件夹>/` 并按**机型名**写 blk；`dsh_wtskin_convert` 做 TGA/DDS→PNG |
+| 面定位 | **不做自动化**：用户鼠标点选最准；调研见 [face-detection.md](face-detection.md) |
