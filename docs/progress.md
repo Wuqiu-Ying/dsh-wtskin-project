@@ -47,6 +47,8 @@ v2（M 模式）完整可用；v3 的 **「战雷画涂装模式」出现在模�
 6. **会话 cwd 不是 `workingDirectory.defaultDirectory`**（那是进程目录/profile 目录）；工具与命令里用 `workingDirectory.ensure(agent)`。
 7. **命令会写进会话日志**：客户端轮询命令会在对话里刷屏（之前 `wtskin-whoami` 就是这样），客户端与 Host 的静默通道只能用文件/Remote，不能用命令。
 8. `followup()` 要带内容：`followup({ content: [{ type:'text', text }], source: { kind:'user' } })`；只 `inject` 不会唤醒模型。
+9. **画布 ≠ 贴图**：战雷模板贴图常是 2048，而工程画布是 4096；面板的 ×2 换算只负责"预览 → 画布"，任何手工量的坐标都必须落在**画布空间**，否则整体差一倍。
+10. `crop` 按画布坐标去裁源图时必须乘 `源图尺寸 / 画布尺寸`（源图更小时），否则裁错区域。
 
 ## 命令清单
 

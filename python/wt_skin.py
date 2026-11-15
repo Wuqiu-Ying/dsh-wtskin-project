@@ -199,10 +199,14 @@ def _place(layer, width, height):
         by0 = int(round(min(ys)))
         bw = max(4, int(round(max(xs) - min(xs))))
         bh = max(4, int(round(max(ys) - min(ys))))
-        left = max(0, min(bx0, src.width - 1))
-        top = max(0, min(by0, src.height - 1))
-        box_w = min(bw, src.width - left)
-        box_h = min(bh, src.height - top)
+        # The quad lives in canvas pixels; the source image may be smaller
+        # (a 2048 texture on a 4096 canvas), so map the box into image space.
+        kx = src.width / float(width)
+        ky = src.height / float(height)
+        left = max(0, min(int(round(bx0 * kx)), src.width - 1))
+        top = max(0, min(int(round(by0 * ky)), src.height - 1))
+        box_w = max(1, min(int(round(bw * kx)), src.width - left))
+        box_h = max(1, min(int(round(bh * ky)), src.height - top))
         src = src.crop((left, top, left + box_w, top + box_h)).resize((bw, bh), Image.LANCZOS)
         x0, y0 = bx0, by0
         target = src.height

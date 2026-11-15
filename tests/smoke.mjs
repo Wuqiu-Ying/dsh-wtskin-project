@@ -275,6 +275,21 @@ try {
   const outside = pixel(polyPng, 8, 8);
   assert(inside[0] > 200, `polygon should cover its interior: ${inside}`);
   assert(outside[0] < 40, `polygon should not cover the corner: ${outside}`);
+  const cropDir = path.join(dir, 'cropbox');
+  await tools.get('dsh_wtskin_project').execute({
+    dir: cropDir, action: 'create',
+    data: { width: 256, height: 256, base: { fill: [10, 10, 10], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'crop_c', dds: false, preview: false, blk: false } },
+  });
+  await tools.get('dsh_wtskin_layer').execute({
+    dir: cropDir, action: 'add',
+    layer: { id: 'pass', image: charFile, quad: [[64, 64], [192, 64], [192, 192], [64, 192]], size: 'crop' },
+  });
+  const cropOut = await tools.get('dsh_wtskin_export').execute({ dir: cropDir });
+  assert(cropOut.includes('warnings: none'), `crop export should be clean: ${cropOut}`);
+  let cropExists = true;
+  try { await readFile(path.join(cropDir, 'out', 'crop_c.png')); } catch { cropExists = false; }
+  assert(cropExists, 'crop export wrote no texture');
+
   console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp
