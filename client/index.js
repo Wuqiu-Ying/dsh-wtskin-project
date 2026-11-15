@@ -611,6 +611,50 @@ window.__ModuleLoader__.load({
       };
 
       // ---- image -----------------------------------------------------------
+      const bytesToUrl = (payload, pathHint) => {
+        const data = payload && payload.data;
+        let bytes;
+        if (typeof data === 'string') {
+          const binary = atob(data);
+          bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+        } else if (data) {
+          bytes = new Uint8Array(data);
+        } else {
+          throw new Error('没有读取到字节');
+        }
+        if (/\.tga$/i.test(pathHint || '')) {
+          const decoded = decodeTga(bytes.buffer);
+          const canvas = document.createElement('canvas');
+          canvas.width = decoded.width;
+          canvas.height = decoded.height;
+          canvas.getContext('2d').putImageData(new ImageData(decoded.data, decoded.width, decoded.height), 0, 0);
+          return { url: canvas.toDataURL('image/png'), w: decoded.width, h: decoded.height };
+        }
+        return { url: URL.createObjectURL(new Blob([bytes], { type: 'image/png' })), w: 0, h: 0 };
+      };
+
+      const loadBackground = (kind) => async () => {
+        const id = sessionId();
+        if (!id || !dir || !project) return;
+        const rel = kind === 'themed'
+          ? `${dir}/out/${String(project.output?.textureName || '')}.png`
+          : String(project.base?.source || project.base?.image || '');
+        if (!rel) { setStatus('没有记录底图路径'); return; }
+        try {
+          const payload = unwrap(await api.remote.workspaceFiles.readBytes(id, rel, {}, new AbortController().signal));
+          const got = bytesToUrl(payload, rel);
+          if (got.w && got.h) { applyImage(got.url, got.w, got.h, { name: rel.split('/').pop() }); return; }
+          const probe = new Image();
+          probe.onload = () => applyImage(got.url, probe.naturalWidth, probe.naturalHeight, { name: rel.split('/').pop() });
+          probe.onerror = () => setStatus(`底图解码失败：${rel}`);
+          probe.src = got.url;
+          setStatus(`已载入底图：${rel}`);
+        } catch (error) {
+          setStatus(`载入底图失败：${String((error && error.message) || error)}`);
+        }
+      };
+
       const pickImage = () => {
         const input = document.createElement('input');
         input.type = 'file';
@@ -712,6 +756,8 @@ window.__ModuleLoader__.load({
 
         project ? h('div', { style: { display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' } },
           h('button', { type: 'button', onClick: pickImage, style: btn(false) }, image ? '换图片' : '选择图片'),
+          h('button', { type: 'button', onClick: loadBackground('original'), style: btn(false) }, '原皮'),
+          h('button', { type: 'button', onClick: loadBackground('themed'), style: btn(false) }, '主题皮'),
           h('button', { type: 'button', onClick: startNewFace, style: btn(false) }, '新建面'),
           h('button', { type: 'button', onClick: () => { setPoints([]); setNames([]); setStatus(''); }, style: btn(false) }, '清空点'),
           h('button', { type: 'button', onClick: () => fitView(true), style: btn(false) }, '适应窗口'),

@@ -4,6 +4,10 @@
 
 ### Added
 
+- `dsh_wtskin_theme`：整机主题换色（原皮 + 渐变调色板），自动移除会盖住底图的全画布图层。
+- `dsh_wtskin_finalize`：项目完成时清空 `WTSP/temporary` 参考素材。
+- 取点面板新增「原皮 / 主题皮」底图切换。
+
 - `dsh_wtskin_convert`：TGA/DDS/PNG/JPG → PNG，供"把这个转成 PNG"这类请求使用。
 - `dsh_wtskin_install`：导出物直接装进 `UserSkins/<文件夹>/`，blk 按机型名命名。
 - 面板每面新增「旋转 180°」「弦长占比」；引擎新增 `crop`（源图 1:1）与 `cover`（铺满包围盒）尺寸模式。

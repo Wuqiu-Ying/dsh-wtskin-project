@@ -26,6 +26,9 @@ v3 核心闭环已打通：**模式预设**、**悬浮取点器**、**多边面�
 - 引擎尺寸模式：`chord` / `quadHeight` / `height` / `widthAdapt` / **`crop`**（源图 1:1 取块）/ **`cover`**（铺满包围盒）
 - **`dsh_wtskin_convert`**：TGA / DDS / PNG / JPG → PNG
 - **`dsh_wtskin_install`**：把导出物装进 `UserSkins/<文件夹>/`，blk 按**机型名**命名
+- **`dsh_wtskin_theme`**：整机主题换色（原皮 + 渐变 palette），自动丢弃会盖住底图的全画布图层
+- **`dsh_wtskin_finalize`**：项目确认完成后清空 `WTSP/temporary`
+- 面板「原皮 / 主题皮」一键切换编辑底图
 
 ### 触发（只有两条）
 
@@ -61,6 +64,8 @@ v3 核心闭环已打通：**模式预设**、**悬浮取点器**、**多边面�
 | `dsh_wtskin_convert` | 模型 | TGA/DDS/PNG/JPG → PNG |
 | `dsh_wtskin_install` | 模型 | 导出物装进 UserSkins，生成 `<机型>.blk` |
 | `dsh_wtskin_import` | 模型 | 导入用户上传的 `faces.json` |
+| `dsh_wtskin_theme` | 模型 | 主题换色（渐变色板重绘原皮） |
+| `dsh_wtskin_finalize` | 模型 | 清空 `WTSP/temporary` |
 
 已删除：`wtskin-diag`、`wtskin-whoami`。
 

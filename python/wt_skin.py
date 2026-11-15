@@ -63,8 +63,8 @@ def _apply_palette(lum, stops):
 
 def build_base(width, height, cfg):
     """Create the base livery (detail carrier recoloured through a palette)."""
-    if cfg.get("source"):
-        src = _load_image(os.path.expandvars(str(cfg["source"]))).convert("RGB")
+    if cfg.get("source") or cfg.get("image"):
+        src = _load_image(os.path.expandvars(str(cfg.get("source") or cfg.get("image")))).convert("RGB")
         if src.size != (width, height):
             src = src.resize((width, height), Image.LANCZOS)
         arr = np.asarray(src).astype(np.float32) / 255.0
@@ -336,8 +336,8 @@ def render(project_path):
     width = int(cfg.get("width", 4096))
     height = int(cfg.get("height", 4096))
     base_cfg = dict(cfg.get("base") or {})
-    if base_cfg.get("source"):
-        base_cfg["source"] = resolve(base_cfg["source"])
+    if base_cfg.get("source") or base_cfg.get("image"):
+        base_cfg["source"] = resolve(base_cfg.get("source") or base_cfg.get("image"))
     img = build_base(width, height, base_cfg)
 
     out = cfg.get("output") or {}

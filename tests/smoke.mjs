@@ -329,6 +329,36 @@ try {
   const pngHead = (await readFile(conv.output)).subarray(0, 4).toString('hex');
   assert(pngHead === '89504e47', `converted file is not a PNG: ${pngHead}`);
 
+  // theme recolour + temporary cleanup
+  const themeDir = path.join(dir, 'theme');
+  await tools.get('dsh_wtskin_project').execute({
+    dir: themeDir, action: 'create',
+    data: { width: 256, height: 256, base: { image: charFile, fill: [12, 24, 52], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'theme_c', dds: false, preview: false, blk: false } },
+  });
+  await tools.get('dsh_wtskin_layer').execute({
+    dir: themeDir, action: 'add',
+    layer: { id: 'bg', image: charFile, quad: [[0, 0], [256, 0], [256, 256], [0, 256]], size: 'chord' },
+  });
+  const themed = JSON.parse(await tools.get('dsh_wtskin_theme').execute({
+    dir: themeDir, colors: [[8, 16, 40], [102, 204, 255]], dropBaseLayer: true,
+  }));
+  assert(themed.palette.length === 2, 'theme palette missing');
+  assert(themed.dropped.includes('bg'), `full-canvas layer should be dropped: ${JSON.stringify(themed)}`);
+  const themedProject = JSON.parse(await readFile(path.join(themeDir, 'project.json'), 'utf8'));
+  assert(themedProject.base.source === charFile && themedProject.layers.length === 0, 'theme did not persist');
+  await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
+  const themedPixel = pixel(path.join(themeDir, 'out', 'theme_c.png'), 128, 128);
+  assert(themedPixel[2] > themedPixel[0] + 20, `recolour should be blue-dominant: ${themedPixel}`);
+
+  const tmpRefs = path.join(cwd, 'WTSP', 'temporary');
+  await mkdir(tmpRefs, { recursive: true });
+  await writeFile(path.join(tmpRefs, 'ref.bin'), 'x');
+  const finalized = JSON.parse(await tools.get('dsh_wtskin_finalize').execute({ dir: cwd }));
+  assert(finalized.removed.includes('ref.bin'), `finalize should report the removed file: ${JSON.stringify(finalized)}`);
+  let tmpGone = false;
+  try { await readFile(path.join(tmpRefs, 'ref.bin')); } catch { tmpGone = true; }
+  assert(tmpGone, 'temporary folder should be cleared');
+
   console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp
