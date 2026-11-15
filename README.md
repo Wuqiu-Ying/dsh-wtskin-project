@@ -64,6 +64,8 @@
 | `dsh_wtskin_export` | 合成并输出 PNG、DDS、预览、四边形调试图、可选法线、blk，返回逐层报告 |
 | `dsh_wtskin_picker` | 打开取点面板（模型侧触发） |
 | `dsh_wtskin_presets` | 内置机型预设 |
+| `dsh_wtskin_convert` | TGA / DDS / PNG / JPG 转 PNG（游戏素材转成可编辑格式） |
+| `dsh_wtskin_install` | 把导出的 DDS + blk 装进 `UserSkins/<文件夹>/`，blk 自动按机型名命名 |
 
 ## 坐标语义
 

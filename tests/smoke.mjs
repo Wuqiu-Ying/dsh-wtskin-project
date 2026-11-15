@@ -309,6 +309,26 @@ try {
   assert(blkText.includes('from:t="q_5l_c*"') && blkText.includes('to:t="q_5l_c.dds"'), `blk entries wrong: ${blkText}`);
   await readFile(installed.dds);
 
+  // TGA -> PNG conversion (the game ships TGA, editors prefer PNG)
+  const tgaPath = path.join(dir, 'sample.tga');
+  {
+    const W = 4; const H = 4;
+    const buf = Buffer.alloc(18 + W * H * 3);
+    buf[2] = 2;                       // uncompressed true-colour
+    buf.writeUInt16LE(W, 12);
+    buf.writeUInt16LE(H, 14);
+    buf[16] = 24;                     // 24 bpp
+    for (let i = 0; i < W * H; i += 1) {
+      const o = 18 + i * 3;
+      buf[o] = 200; buf[o + 1] = 16; buf[o + 2] = 32;   // BGR
+    }
+    await writeFile(tgaPath, buf);
+  }
+  const conv = JSON.parse(await tools.get('dsh_wtskin_convert').execute({ input: tgaPath }));
+  assert(conv.width === 4 && conv.height === 4, `convert dimensions: ${JSON.stringify(conv)}`);
+  const pngHead = (await readFile(conv.output)).subarray(0, 4).toString('hex');
+  assert(pngHead === '89504e47', `converted file is not a PNG: ${pngHead}`);
+
   console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp

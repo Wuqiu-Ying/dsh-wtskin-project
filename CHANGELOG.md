@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- `dsh_wtskin_convert`：TGA/DDS/PNG/JPG → PNG，供"把这个转成 PNG"这类请求使用。
+- `dsh_wtskin_install`：导出物直接装进 `UserSkins/<文件夹>/`，blk 按机型名命名。
+- 面板每面新增「旋转 180°」「弦长占比」；引擎新增 `crop`（源图 1:1）与 `cover`（铺满包围盒）尺寸模式。
+
+### Fixed
+
+- `crop` 按画布坐标裁源图时未换算尺寸比（源图更小时会裁错区域）。
+- 建工程时未写入 `vehicle`，导致安装工具无法确定机型名。
+
+
 ## 3.0.0
 
 v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分。

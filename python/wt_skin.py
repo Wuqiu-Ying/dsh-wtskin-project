@@ -449,20 +449,40 @@ def render(project_path):
 
 def main(argv):
     if len(argv) < 3:
-        print("usage: wt_skin.py export|info <project.json> [--out <result.json>]", file=sys.stderr)
+        print("usage: wt_skin.py export|info|convert <input> [<output>] [--out <result.json>]", file=sys.stderr)
         return 2
 
-    cmd, project = argv[1], argv[2]
+    cmd = argv[1]
+    rest = argv[2:]
     out_path = None
-    if len(argv) >= 5 and argv[3] == "--out":
-        out_path = argv[4]
+    if "--out" in rest:
+        idx = rest.index("--out")
+        out_path = rest[idx + 1] if idx + 1 < len(rest) else None
+        rest = rest[:idx] + rest[idx + 2:]
+    positional = [a for a in rest if not a.startswith("--")]
+    source = positional[0] if positional else ""
 
     status = 0
     try:
         if cmd == "export":
-            payload = render(project)
+            payload = render(source)
+        elif cmd == "convert":
+            dest = positional[1] if len(positional) > 1 else os.path.splitext(source)[0] + ".png"
+            im = Image.open(source)
+            keep_alpha = im.mode in ("RGBA", "LA") or "transparency" in im.info
+            im = im.convert("RGBA" if keep_alpha else "RGB")
+            im.save(dest, "PNG", optimize=True)
+            payload = {
+                "ok": True,
+                "input": os.path.abspath(source),
+                "output": os.path.abspath(dest),
+                "width": im.width,
+                "height": im.height,
+                "mode": im.mode,
+                "bytes": os.path.getsize(dest),
+            }
         elif cmd == "info":
-            with open(project, encoding="utf-8") as fh:
+            with open(source, encoding="utf-8") as fh:
                 cfg = json.load(fh)
             payload = {
                 "name": cfg.get("name"),
