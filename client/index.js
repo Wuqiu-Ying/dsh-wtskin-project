@@ -200,11 +200,13 @@ window.__ModuleLoader__.load({
 
     /** commands.execute answers {ok, value}; older builds answer the result. */
     const commandResult = (answered) => {
-      if (answered && typeof answered === 'object' && 'ok' in answered) {
+      if (!answered || typeof answered !== 'object') return answered;
+      if (answered.kind) return answered;
+      if ('ok' in answered) {
         if (!answered.ok) throw new Error(answered.error?.message || answered.error?.code || 'command failed');
-        return answered.value;
+        return answered.value ?? answered.result;
       }
-      return answered;
+      return answered.value ?? answered.result ?? answered;
     };
 
     const btn = (primary) => ({
@@ -232,6 +234,7 @@ window.__ModuleLoader__.load({
       const [status, setStatus] = React.useState('');
       const [busy, setBusy] = React.useState(false);
       const [renaming, setRenaming] = React.useState(-1);
+      const userPicked = React.useRef(false);
 
       const frameRef = React.useRef(null);
       const innerRef = React.useRef(null);
@@ -273,16 +276,40 @@ window.__ModuleLoader__.load({
           const message = String((error && error.message) || error);
           setStatus(message.includes('not-found') ? 'WTSP 里还没有工程，先让模型建档' : `读取失败：${message}`);
         }
-      }, [dir]);
+      }, []);
 
-      React.useEffect(() => { load(); }, [load]);
+      React.useEffect(() => { load(); }, []);
       React.useEffect(() => {
         const timer = window.setInterval(() => {
           const id = sessionId();
-          if (id !== sid) { setSid(id); load(); }
+          if (id !== sid) { setSid(id); userPicked.current = false; load(); }
         }, 2000);
         return () => window.clearInterval(timer);
       }, [sid, load]);
+
+      React.useEffect(() => {
+        let stopped = false;
+        const tick = async () => {
+          if (stopped) return;
+          const id = sessionId();
+          if (!id) return;
+          try {
+            const dirs = await listDirs(id, 'WTSP');
+            if (stopped) return;
+            setProjects(dirs);
+            if (userPicked.current) return;
+            let active = '';
+            try {
+              const file = unwrap(await api.remote.workspaceFiles.read(id, 'WTSP/.active', {}, new AbortController().signal));
+              active = String(file.text || '').trim().split('\\').join('/');
+            } catch { active = ''; }
+            if (active && dirs.includes(active) && active !== dir) load(active);
+          } catch { /* listing is best effort */ }
+        };
+        tick();
+        const timer = window.setInterval(tick, 5000);
+        return () => { stopped = true; window.clearInterval(timer); };
+      }, [dir]);
 
       // ---- view ------------------------------------------------------------
       const skipFit = React.useRef(false);
@@ -431,7 +458,8 @@ window.__ModuleLoader__.load({
           setNames([]);
           if (info.project) setProject(info.project);
           else await load(dir);
-          setStatus(`已保存 ${info.saved.join(', ')}（共 ${info.layers} 个面）。面数据已写入 faces.json，用「提交面数据」查看路径`);
+          setStatus(`已保存 ${info.saved.join(', ')}（服务端 ${info.layers} 个面，`
+            + `${info.project ? '已直接刷新' : '已重新读取'}）。面数据在 faces.json，用「提交面数据」查看路径`);
         } catch (error) {
           setStatus(`保存失败：${String((error && error.message) || error)}`);
         } finally {
@@ -637,7 +665,7 @@ window.__ModuleLoader__.load({
         h('div', { style: { display: 'flex', gap: '6px', alignItems: 'center', marginBottom: '8px' } },
           h('select', {
             value: dir,
-            onChange: (event) => load(event.target.value),
+            onChange: (event) => { userPicked.current = true; load(event.target.value); },
             style: { flex: 1, minWidth: 0, height: '28px', borderRadius: '6px', border: `1px solid ${C.border}`, background: C.panel2, color: C.text, font: 'inherit' },
           },
             projects.length === 0 ? h('option', { value: '' }, '还没有工程') : null,
