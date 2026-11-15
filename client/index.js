@@ -482,8 +482,7 @@ window.__ModuleLoader__.load({
           setNames([]);
           if (info.project) setProject(info.project);
           else await load(dir);
-          setStatus(`已保存 ${info.saved.join(', ')}（服务端 ${info.layers} 个面，`
-            + `${info.project ? '已直接刷新' : '已重新读取'}）。面数据在 faces.json，用「提交面数据」查看路径`);
+          setStatus(`已保存 ${info.saved.join('、')}\n保存路径 ${info.facesPath}`);
         } catch (error) {
           setStatus(`保存失败：${String((error && error.message) || error)}`);
         } finally {
@@ -815,7 +814,7 @@ window.__ModuleLoader__.load({
                 cursor: busy || points.length < 3 ? 'not-allowed' : 'pointer',
                 opacity: busy || points.length < 3 ? 0.5 : 1,
               },
-            }, busy ? '保存中…' : '确认'),
+            }, busy ? '保存中…' : '保存'),
           )
           : null,
 
@@ -853,7 +852,7 @@ window.__ModuleLoader__.load({
         ),
 
         status
-          ? h('div', { style: { marginTop: '8px', color: /失败|没有|不支持/.test(status) ? C.bad : C.ok, wordBreak: 'break-all', lineHeight: 1.5 } }, status)
+          ? h('div', { style: { marginTop: '8px', color: /失败|没有|不支持/.test(status) ? C.bad : C.ok, wordBreak: 'break-all', whiteSpace: 'pre-wrap', lineHeight: 1.5 } }, status)
           : null,
       );
     }
