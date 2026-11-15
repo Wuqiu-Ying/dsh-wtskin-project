@@ -209,6 +209,28 @@ window.__ModuleLoader__.load({
       return answered.value ?? answered.result ?? answered;
     };
 
+    /** Dig for the command outcome whatever wrapper the transport used; the
+     *  exact shape differs between builds (bare result, {ok,value}, events). */
+    const findCommandResult = (value, depth = 0) => {
+      if (!value || depth > 4) return null;
+      if (Array.isArray(value)) {
+        for (const item of value) {
+          const found = findCommandResult(item, depth + 1);
+          if (found) return found;
+        }
+        return null;
+      }
+      if (typeof value !== 'object') return null;
+      if (typeof value.kind === 'string' && 'text' in value) return value;
+      for (const key of ['value', 'result', 'data', 'events', 'message']) {
+        if (value[key] !== undefined) {
+          const found = findCommandResult(value[key], depth + 1);
+          if (found) return found;
+        }
+      }
+      return null;
+    };
+
     const btn = (primary) => ({
       height: '28px',
       padding: '0 10px',
@@ -450,8 +472,10 @@ window.__ModuleLoader__.load({
             },
           })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = commandResult(out);
-          if (!result || result.kind !== 'success') throw new Error((result && result.text) || '保存失败');
+          const result = findCommandResult(out) || commandResult(out);
+          if (!result || result.kind !== 'success') {
+            throw new Error(`${(result && result.text) || '保存失败'}｜返回：${JSON.stringify(out).slice(0, 180)}`);
+          }
           const info = JSON.parse(result.text);
           setEditing(null);
           setPoints([]);
@@ -540,8 +564,10 @@ window.__ModuleLoader__.load({
         try {
           const line = `/wtskin-save ${asciiJson({ dir, faces: [], remove: [layer.id] })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = commandResult(out);
-          if (!result || result.kind !== 'success') throw new Error((result && result.text) || '删除失败');
+          const result = findCommandResult(out) || commandResult(out);
+          if (!result || result.kind !== 'success') {
+            throw new Error(`${(result && result.text) || '删除失败'}｜返回：${JSON.stringify(out).slice(0, 180)}`);
+          }
           if (editing && editing.id === layer.id) { setEditing(null); setPoints([]); setNames([]); }
           const info = JSON.parse(result.text);
           if (info.project) setProject(info.project);
@@ -561,8 +587,10 @@ window.__ModuleLoader__.load({
         try {
           const line = `/wtskin-save ${asciiJson({ dir, faces: [], remove: [], flush: true })}`;
           const out = await api.remote.commands.execute(id, line, []);
-          const result = commandResult(out);
-          if (!result || result.kind !== 'success') throw new Error((result && result.text) || '写入失败');
+          const result = findCommandResult(out) || commandResult(out);
+          if (!result || result.kind !== 'success') {
+            throw new Error(`${(result && result.text) || '写入失败'}｜返回：${JSON.stringify(out).slice(0, 180)}`);
+          }
           const info = JSON.parse(result.text);
           await load(dir);
           setStatus(`面数据已写入：${info.facesPath}。把它拖进输入框发送给模型即可`);
