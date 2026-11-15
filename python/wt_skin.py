@@ -187,30 +187,49 @@ def _place(layer, width, height):
 
     size_mode = layer.get("size", "chord")
     factor = float(layer.get("factor", 1.0))
-    if size_mode == "chord":
-        target = chord * factor
-    elif size_mode == "height":
-        target = float(layer["height"]) * factor
-    elif size_mode == "quadHeight":
-        ys = [p[1] for p in pts]
-        target = (max(ys) - min(ys)) * factor
-    elif size_mode == "widthAdapt":
+
+    if size_mode == "crop":
+        # Pass-through: the image is a source texture and the quad selects the
+        # region to copy 1:1 (no scaling). This keeps the original artwork at
+        # its native resolution instead of shrinking a whole texture into the
+        # face, which is what "chord" would do.
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        bw = max(xs) - min(xs)
-        bh = max(ys) - min(ys)
-        target = min(bw / float(layer.get("aspect", 0.62)), bh * 0.9) * factor
+        bx0 = int(round(min(xs)))
+        by0 = int(round(min(ys)))
+        bw = max(4, int(round(max(xs) - min(xs))))
+        bh = max(4, int(round(max(ys) - min(ys))))
+        left = max(0, min(bx0, src.width - 1))
+        top = max(0, min(by0, src.height - 1))
+        box_w = min(bw, src.width - left)
+        box_h = min(bh, src.height - top)
+        src = src.crop((left, top, left + box_w, top + box_h)).resize((bw, bh), Image.LANCZOS)
+        x0, y0 = bx0, by0
     else:
-        raise ValueError(f"unknown size mode {size_mode!r}")
+        if size_mode == "chord":
+            target = chord * factor
+        elif size_mode == "height":
+            target = float(layer["height"]) * factor
+        elif size_mode == "quadHeight":
+            ys = [p[1] for p in pts]
+            target = (max(ys) - min(ys)) * factor
+        elif size_mode == "widthAdapt":
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            bw = max(xs) - min(xs)
+            bh = max(ys) - min(ys)
+            target = min(bw / float(layer.get("aspect", 0.62)), bh * 0.9) * factor
+        else:
+            raise ValueError(f"unknown size mode {size_mode!r}")
 
-    target = max(4, int(round(target)))
-    src = src.resize((max(1, int(round(src.width * target / src.height))), target), Image.LANCZOS)
+        target = max(4, int(round(target)))
+        src = src.resize((max(1, int(round(src.width * target / src.height))), target), Image.LANCZOS)
 
-    dx, dy = layer.get("offset", [0, 0])
-    cx = centre[0] + float(dx)
-    cy = centre[1] + float(dy)
-    x0 = int(round(cx - src.width / 2))
-    y0 = int(round(cy - src.height / 2))
+        dx, dy = layer.get("offset", [0, 0])
+        cx = centre[0] + float(dx)
+        cy = centre[1] + float(dy)
+        x0 = int(round(cx - src.width / 2))
+        y0 = int(round(cy - src.height / 2))
 
     mask = Image.new("L", (width, height), 0)
     md = ImageDraw.Draw(mask)
