@@ -632,6 +632,29 @@ window.__ModuleLoader__.load({
         return { url: URL.createObjectURL(new Blob([bytes], { type: 'image/png' })), w: 0, h: 0 };
       };
 
+      const imageIsFlat = (url) => new Promise((resolve) => {
+        const probe = new Image();
+        probe.onload = () => {
+          try {
+            const size = 32;
+            const canvas = document.createElement('canvas');
+            canvas.width = size; canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(probe, 0, 0, size, size);
+            const data = ctx.getImageData(0, 0, size, size).data;
+            let sum = 0; let sum2 = 0; let n = 0;
+            for (let i = 0; i < data.length; i += 4) {
+              const v = (data[i] + data[i + 1] + data[i + 2]) / 3;
+              sum += v; sum2 += v * v; n += 1;
+            }
+            const mean = sum / n;
+            resolve(Math.max(0, sum2 / n - mean * mean) < 9);
+          } catch { resolve(false); }
+        };
+        probe.onerror = () => resolve(false);
+        probe.src = url;
+      });
+
       const loadBackground = (kind) => async () => {
         const id = sessionId();
         if (!id || !dir || !project) return;
@@ -665,7 +688,10 @@ window.__ModuleLoader__.load({
             } else if (kind === 'normal') {
               setStatus(`已载入法线图（仅看结构，不能当底图）：${rel}`);
             } else if (kind === 'original') {
-              setStatus(`已载入原皮：${rel}（若模板是纯灰，请用「法线图」或「导引图」量面）`);
+              const flat = await imageIsFlat(got.url);
+              setStatus(flat
+                ? '原皮是纯灰/纯色：这个范本是在「启用自定义涂装」时创建的。请到游戏里禁用该载具的自定义涂装，重新创建涂装范本，再载入原皮。'
+                : `已载入原皮：${rel}`);
             } else {
               setStatus(`已载入导引图：${rel}`);
             }
