@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.3
+
+### Added
+
+- `dsh_wtskin_reference`：从 WT Live 按标签下载参考涂装到 `WTSP/temporary/`（或导入用户已下载的 zip），
+  解压并返回 blk 与贴图清单；自动读取系统代理（`NODE_USE_ENV_PROXY`）。
+- 包内新增 `tools/fetch_reference.mjs`。
+
+
 ## 3.0.2
 
 ### Changed

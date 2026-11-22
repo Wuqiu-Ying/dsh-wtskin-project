@@ -1,6 +1,6 @@
 {
   "name": "dsh-wtskin-project",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "War Thunder user-skin studio for DSH (v3): agent preset, floating quad picker, WTSP projects, final-pixel quads, normal maps and self-checking exports.",
   "keywords": [
     "dsh",
@@ -27,7 +27,8 @@
     "cordis.patch.yml",
     "README.md",
     "CHANGELOG.md",
-    "docs"
+    "docs",
+    "tools"
   ],
   "dsh": {
     "bundle": {

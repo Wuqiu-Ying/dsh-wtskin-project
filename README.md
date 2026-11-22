@@ -68,6 +68,7 @@
 | `dsh_wtskin_install` | 把导出的 DDS + blk 装进 `UserSkins/<文件夹>/`，blk 自动按机型名命名 |
 | `dsh_wtskin_theme` | 主题换色：按渐变调色板重绘原皮（`base.source`），`detail=keep` 保留铆钉细节 / `detail=flat` 抹成纯色块 |
 | `dsh_wtskin_finalize` | 项目确认完成后清空 `WTSP/temporary`（下载的参考皮肤） |
+| `dsh_wtskin_reference` | 从 WT Live 下载参考涂装到 `WTSP/temporary/`（或导入 zip），返回 blk 与贴图清单 |
 
 ## 坐标语义
 

@@ -401,6 +401,18 @@ try {
   try { await readFile(path.join(tmpRefs, 'ref.bin')); } catch { tmpGone = true; }
   assert(tmpGone, 'temporary folder should be cleared');
 
+  // reference skin import: zip -> WTSP/temporary + blk/texture summary
+  const refSrc = path.join(dir, 'refsrc');
+  await mkdir(refSrc, { recursive: true });
+  await writeFile(path.join(refSrc, 'test.blk'), 'name:t="user"\n\nreplace_tex{\n  from:t="x_c*"\n  to:t="x_c.dds"\n}\n');
+  await writeFile(path.join(refSrc, 'x_c.dds'), 'DDS fake');
+  const refZip = path.join(dir, 'ref.zip');
+  execFileSync('tar', ['-a', '-c', '-f', refZip, '-C', refSrc, 'test.blk', 'x_c.dds'], { stdio: 'inherit' });
+  const refOut = JSON.parse(await tools.get('dsh_wtskin_reference').execute({ file: refZip }));
+  assert(refOut.results.length === 1, `reference import failed: ${JSON.stringify(refOut)}`);
+  assert(String(refOut.results[0].blk || '').includes('replace_tex'), 'reference blk was not reported');
+  assert((refOut.results[0].textures || []).some((t) => t.name === 'x_c.dds'), 'reference textures were not listed');
+
   console.log('WTSP + panel save + polygons ok');
 
   // ---------------------------------------------------------------- /wtskinp
