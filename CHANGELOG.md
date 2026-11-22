@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.9
+
+### Fixed
+
+- `dsh_wtskin_import` 返回的是内容数组，但工具声明的是字符串输出，宿主会拒收
+  （报 `"value" must be a string`，实测会话里出现过）。改为返回纯字符串，并区分
+  "新增 / 更新" 的面数。
+
+
 ## 3.0.8
 
 ### Fixed

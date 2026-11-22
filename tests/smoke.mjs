@@ -415,6 +415,11 @@ try {
   const patchPixel = pixel(themePng, 32, 32);
   assert(patchPixel[0] > 200 && patchPixel[1] < 60, `solid fill layer should paint red: ${patchPixel}`);
 
+  const facesFile = path.join(themeDir, 'faces.json');
+  await writeFile(facesFile, JSON.stringify({ faces: [{ id: 'imp1', quad: [[0, 0], [10, 0], [10, 10], [0, 10]] }] }));
+  const imported = await tools.get('dsh_wtskin_import').execute({ dir: themeDir, file: facesFile });
+  assert(typeof imported === 'string' && imported.includes('added'), `import must return a string: ${typeof imported}`);
+
   const tmpRefs = path.join(cwd, 'WTSP', 'temporary');
   await mkdir(tmpRefs, { recursive: true });
   await writeFile(path.join(tmpRefs, 'ref.bin'), 'x');
