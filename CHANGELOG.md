@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.4
+
+### Fixed
+
+- `dsh_wtskin_reference` 之前从帖子页抓 `/dl/` 链接，实际抓到的是 og:image 预览图
+  （下载下来是 JPEG，解压失败）。改为使用 feed API 的 `item.file.link`（真正的附件），
+  并按附件名保存；跳过没有附件的图片帖。
+
+
 ## 3.0.3
 
 ### Added

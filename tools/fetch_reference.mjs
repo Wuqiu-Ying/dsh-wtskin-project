@@ -35,23 +35,23 @@ const feed = await (await fetch('https://live.warthunder.com/api/feed/get_regula
 
 const list = Array.isArray(feed?.data?.list) ? feed.data.list : [];
 const results = [];
-for (const item of list.slice(0, max)) {
+for (const item of list.slice(0, max * 3)) {
+  if (results.length >= max) break;
   const id = String(item.id);
   const language = String(item.language || 'en');
+  // The feed API carries the real attachment; the post page's only /dl/ link
+  // is the og:image, which is how an image preview got downloaded as a "zip".
+  const file = item.file;
+  if (!file || !file.link) continue;
   try {
-    const page = await (await fetch(`https://live.warthunder.com/post/${id}/${language}/`, { headers: { 'User-Agent': UA } })).text();
-    const dl = page.match(/\/dl\/[a-f0-9]+\//i)?.[0];
-    if (!dl) {
-      results.push({ id, error: 'post page has no /dl/ link' });
-      continue;
-    }
-    const res = await fetch(`https://live.warthunder.com${dl}`, { headers: { 'User-Agent': UA } });
+    const res = await fetch(file.link, { headers: { 'User-Agent': UA } });
     if (!res.ok) {
       results.push({ id, error: `download HTTP ${res.status}` });
       continue;
     }
     const buffer = Buffer.from(await res.arrayBuffer());
-    const zip = path.join(outDir, `${id}.zip`);
+    const safeName = String(file.name || `${id}.zip`).replace(/[\\/:*?"<>|]/g, '_');
+    const zip = path.join(outDir, safeName);
     fs.writeFileSync(zip, buffer);
     results.push({
       id,
@@ -59,6 +59,8 @@ for (const item of list.slice(0, max)) {
       downloads: item.downloads ?? null,
       author: item.author?.nickname ?? null,
       description: String(item.description ?? '').slice(0, 200),
+      name: safeName,
+      type: file.type ?? null,
       zip,
       bytes: buffer.length,
     });
