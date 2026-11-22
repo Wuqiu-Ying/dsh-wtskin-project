@@ -87,6 +87,20 @@ function pixel(file, x, y) {
   return value;
 }
 
+function uniqueColors(file) {
+  const outJson = path.join(os.tmpdir(), `wtskin-colors-${process.pid}-${Date.now()}.json`);
+  const code = [
+    'import sys, json',
+    'from PIL import Image',
+    'im = Image.open(sys.argv[1]).convert("RGB").resize((128, 128))',
+    'json.dump(len(set(im.getdata())), open(sys.argv[2], "w"))',
+  ].join('\n');
+  execFileSync(python, ['-c', code, file, outJson], { stdio: 'inherit' });
+  const value = JSON.parse(readFileSync(outJson, 'utf8'));
+  rmSync(outJson, { force: true });
+  return value;
+}
+
 const dir = await mkdtemp(path.join(os.tmpdir(), 'wtskin2-'));
 const charFile = path.join(dir, 'char.png');
 const QUAD = [[32, 32], [224, 32], [224, 96], [32, 96]];
@@ -330,25 +344,53 @@ try {
   assert(pngHead === '89504e47', `converted file is not a PNG: ${pngHead}`);
 
   // theme recolour + temporary cleanup
+  const detailFile = path.join(dir, 'detail.png');
+  {
+    const code = [
+      'import sys',
+      'from PIL import Image',
+      'import random',
+      'random.seed(7)',
+      'im = Image.new("RGB", (256, 256))',
+      'px = im.load()',
+      'for y in range(256):',
+      '    for x in range(256):',
+      '        base = int(30 + x * 0.7)',
+      '        noise = int(random.random() * 50) if (x // 4 + y // 4) % 2 else 0',
+      '        v = max(0, min(255, base + noise))',
+      '        px[x, y] = (v, v, v)',
+      'im.save(sys.argv[1])',
+    ].join('\n');
+    execFileSync(python, ['-c', code, detailFile], { stdio: 'inherit' });
+  }
   const themeDir = path.join(dir, 'theme');
   await tools.get('dsh_wtskin_project').execute({
     dir: themeDir, action: 'create',
-    data: { width: 256, height: 256, base: { image: charFile, fill: [12, 24, 52], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'theme_c', dds: false, preview: false, blk: false } },
+    data: { width: 256, height: 256, base: { image: detailFile, fill: [12, 24, 52], edgeGlow: 0, dots: false }, output: { dir: 'out', textureName: 'theme_c', dds: false, preview: false, blk: false } },
   });
   await tools.get('dsh_wtskin_layer').execute({
     dir: themeDir, action: 'add',
     layer: { id: 'bg', image: charFile, quad: [[0, 0], [256, 0], [256, 256], [0, 256]], size: 'chord' },
   });
   const themed = JSON.parse(await tools.get('dsh_wtskin_theme').execute({
-    dir: themeDir, colors: [[8, 16, 40], [102, 204, 255]], dropBaseLayer: true,
+    dir: themeDir, colors: [[8, 16, 40], [102, 204, 255]], source: detailFile, dropBaseLayer: true,
   }));
   assert(themed.palette.length === 2, 'theme palette missing');
   assert(themed.dropped.includes('bg'), `full-canvas layer should be dropped: ${JSON.stringify(themed)}`);
   const themedProject = JSON.parse(await readFile(path.join(themeDir, 'project.json'), 'utf8'));
-  assert(themedProject.base.source === charFile && themedProject.layers.length === 0, 'theme did not persist');
+  assert(themedProject.base.source === detailFile && themedProject.layers.length === 0, 'theme did not persist');
   await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
-  const themedPixel = pixel(path.join(themeDir, 'out', 'theme_c.png'), 128, 128);
+  const themePng = path.join(themeDir, 'out', 'theme_c.png');
+  const themedPixel = pixel(themePng, 128, 128);
   assert(themedPixel[2] > themedPixel[0] + 20, `recolour should be blue-dominant: ${themedPixel}`);
+  const keepColors = uniqueColors(themePng);
+  const flat = JSON.parse(await tools.get('dsh_wtskin_theme').execute({
+    dir: themeDir, colors: [[8, 16, 40], [102, 204, 255]], detail: 'flat',
+  }));
+  assert(flat.detail === 'flat', 'flat detail should persist');
+  await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
+  const flatColors = uniqueColors(themePng);
+  assert(flatColors < keepColors / 2, `flat mode must smooth detail away (keep ${keepColors} vs flat ${flatColors})`);
 
   const tmpRefs = path.join(cwd, 'WTSP', 'temporary');
   await mkdir(tmpRefs, { recursive: true });

@@ -5,6 +5,7 @@
 ### Added
 
 - `dsh_wtskin_theme`：整机主题换色（原皮 + 渐变调色板），自动移除会盖住底图的全画布图层。
+- 换色观感选项 `detail`：`keep` 保留铆钉/蒙皮线（机械感，默认），`flat` 平滑成纯色块（绘画风）。
 - `dsh_wtskin_finalize`：项目完成时清空 `WTSP/temporary` 参考素材。
 - 取点面板新增「原皮 / 主题皮」底图切换。
 

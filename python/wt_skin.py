@@ -69,9 +69,25 @@ def build_base(width, height, cfg):
             src = src.resize((width, height), Image.LANCZOS)
         arr = np.asarray(src).astype(np.float32) / 255.0
         lum = arr.mean(axis=2)
-        col = _apply_palette(lum, _palette_stops(cfg.get("palette") or []))
-        contrast = float(cfg.get("contrast", 1.0))
-        col = np.clip(col * (0.72 + 0.55 * lum[..., None] * contrast), 0, 1)
+        stops = _palette_stops(cfg.get("palette") or [])
+        detail = str(cfg.get("detail") or "keep").lower()
+        if detail == "flat":
+            # Painterly theme: smooth away rivets/panel lines, then map each
+            # band straight to a palette stop so the surface is flat colour.
+            small = Image.fromarray((lum * 255).astype(np.uint8)).resize(
+                (max(8, width // 40), max(8, height // 40)), Image.BILINEAR
+            )
+            smooth = small.resize((width, height), Image.BILINEAR)
+            lum = np.asarray(smooth).astype(np.float32) / 255.0
+            n = max(2, len(stops))
+            idx = np.clip((lum * n).astype(np.int32), 0, n - 1)
+            cols = np.array([stop[1] for stop in stops], dtype=np.float32) / 255.0
+            col = cols[idx]
+        else:
+            # Mechanical theme: keep the original luminance detail, recoloured.
+            col = _apply_palette(lum, stops)
+            contrast = float(cfg.get("contrast", 1.0))
+            col = np.clip(col * (0.72 + 0.55 * lum[..., None] * contrast), 0, 1)
         img = Image.fromarray((col * 255).astype(np.uint8)).convert("RGBA")
     else:
         fill = cfg.get("fill") or [12, 24, 52]
