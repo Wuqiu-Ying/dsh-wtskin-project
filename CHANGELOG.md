@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.1
+
+### Fixed
+
+- 6 个 `@deepseek-ai/*` 宿主包被精确版本写在 `dependencies` 里，会随插件装进 profile 并遮住宿主自己的新版本；宿主升级后旧副本顶替新副本，导致 DSH 启动失败。
+- 改为 `peerDependencies`（`>=0.1.1-rc.2 <0.3.0`）并标记 optional，不再实体化进 profile；运行时由宿主提供，缺失时插件回退到内置的 JSON Schema 转换与 app.asar 路径。
+
+
 ## 3.0.0
 
 v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分。

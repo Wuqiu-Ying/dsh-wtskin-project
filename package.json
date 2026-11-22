@@ -1,6 +1,6 @@
 {
   "name": "dsh-wtskin-project",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "War Thunder user-skin studio for DSH (v3): agent preset, floating quad picker, WTSP projects, final-pixel quads, normal maps and self-checking exports.",
   "keywords": [
     "dsh",
@@ -29,14 +29,6 @@
     "CHANGELOG.md",
     "docs"
   ],
-  "dependencies": {
-    "@deepseek-ai/dsh-time-context": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tool-ask-user": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tool-fs": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tool-todo": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tool-web": "0.2.1-rc.3",
-    "@deepseek-ai/dsh-tools": "0.2.1-rc.3"
-  },
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
@@ -60,5 +52,33 @@
   "bugs": {
     "url": "https://github.com/Wuqiu-Ying/dsh-wtskin-project/issues"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "peerDependencies": {
+    "@deepseek-ai/dsh-time-context": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tool-ask-user": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tool-fs": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tool-todo": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tool-web": ">=0.1.1-rc.2 <0.3.0",
+    "@deepseek-ai/dsh-tools": ">=0.1.1-rc.2 <0.3.0"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-time-context": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-ask-user": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-fs": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-todo": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tool-web": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  }
 }

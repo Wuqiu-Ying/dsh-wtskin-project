@@ -8,3 +8,4 @@ __pycache__/
 .preset-status.json
 .client-diag.json
 .whoami.json
+dist/
