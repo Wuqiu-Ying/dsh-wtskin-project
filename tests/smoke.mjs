@@ -11,6 +11,7 @@ import { mkdtemp, mkdir, rm, readFile, access, writeFile } from 'node:fs/promise
 import { readFileSync, rmSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
+import { WTSKIN_PERSONA } from '../lib/persona.js';
 import os from 'node:os';
 import path from 'node:path';
 import { apply } from '../lib/index.js';
@@ -124,6 +125,7 @@ try {
   assert(presets.length === 1, 'the mode preset was not registered');
   assert(presets[0].id === 'wtskin' && presets[0].plugins.length === 6, 'preset declaration is incomplete');
   assert(presets[0].name === '战雷画涂装模式', 'preset display name is wrong');
+  assert(WTSKIN_PERSONA.includes('军工复刻') && WTSKIN_PERSONA.includes('detail=keep'), 'persona must define the military style precisely');
   const exportDef = tools.get('dsh_wtskin_export');
   assert(exportDef.parameters && exportDef.parameters.type === 'object', 'tool parameters must be a JSON Schema object');
   assert(exportDef.parameters.properties.dir, 'parameters must survive the schema conversion');
@@ -391,6 +393,26 @@ try {
   await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
   const flatColors = uniqueColors(themePng);
   assert(flatColors < keepColors / 2, `flat mode must smooth detail away (keep ${keepColors} vs flat ${flatColors})`);
+
+  const tinted = JSON.parse(await tools.get('dsh_wtskin_theme').execute({
+    dir: themeDir, colors: [[8, 16, 40], [40, 90, 140]], mode: 'tint', detail: 'keep',
+  }));
+  assert(tinted.mode === 'tint', 'tint mode should persist');
+  assert(tinted.palette[tinted.palette.length - 1][1][0] >= 235, 'a near-white anchor should be appended');
+  const tintProject = JSON.parse(await readFile(path.join(themeDir, 'project.json'), 'utf8'));
+  assert(tintProject.base.edgeGlow === 0, 'edge glow should default to 0 when applying a theme');
+  await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
+  const bright = pixel(themePng, 240, 128);
+  const dark = pixel(themePng, 16, 128);
+  assert(bright[0] + bright[1] + bright[2] > dark[0] + dark[1] + dark[2] + 60, `tint must keep luminance: bright ${bright} dark ${dark}`);
+
+  await tools.get('dsh_wtskin_layer').execute({
+    dir: themeDir, action: 'add',
+    layer: { id: 'patch', fill: [255, 0, 0], quad: [[0, 0], [64, 0], [64, 64], [0, 64]] },
+  });
+  await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
+  const patchPixel = pixel(themePng, 32, 32);
+  assert(patchPixel[0] > 200 && patchPixel[1] < 60, `solid fill layer should paint red: ${patchPixel}`);
 
   const tmpRefs = path.join(cwd, 'WTSP', 'temporary');
   await mkdir(tmpRefs, { recursive: true });

@@ -70,8 +70,27 @@ def build_base(width, height, cfg):
         arr = np.asarray(src).astype(np.float32) / 255.0
         lum = arr.mean(axis=2)
         stops = _palette_stops(cfg.get("palette") or [])
+        # Normalise the source luminance before mapping: a bright game template
+        # otherwise lands entirely in the light end of the palette and the whole
+        # airframe comes out one flat hue.
+        levels = cfg.get("levels") or [0.01, 0.99]
+        try:
+            lo, hi = float(levels[0]), float(levels[1])
+        except (TypeError, ValueError, IndexError):
+            lo, hi = 0.01, 0.99
+        if 0.0 <= lo < hi <= 1.0:
+            p_lo = float(np.quantile(lum, lo))
+            p_hi = float(np.quantile(lum, hi))
+            if p_hi > p_lo + 1e-6:
+                lum = np.clip((lum - p_lo) / (p_hi - p_lo), 0.0, 1.0)
+        mode = str(cfg.get("mode") or "gradient").lower()
         detail = str(cfg.get("detail") or "keep").lower()
-        if detail == "flat":
+        if mode == "tint":
+            # Multiply the original colour by the theme colour: white stays
+            # light, black stays black, detail survives without a full remap.
+            theme = np.array(stops[len(stops) // 2][1], dtype=np.float32) / 255.0
+            col = np.clip(arr * theme, 0.0, 1.0)
+        elif detail == "flat":
             # Painterly theme: smooth away rivets/panel lines, then map each
             # band straight to a palette stop so the surface is flat colour.
             small = Image.fromarray((lum * 255).astype(np.uint8)).resize(
@@ -192,76 +211,90 @@ def quad_geometry(pts):
 
 def _place(layer, width, height):
     """Composite one layer; returns (piece, position, stats)."""
-    src = _load_image(os.path.expandvars(str(layer["image"])))
     pts, warnings = validate_polygon(layer["quad"])
     chord, centre, le, te = polygon_geometry(pts)
-
-    if layer.get("flip"):
-        src = src.transpose(Image.FLIP_LEFT_RIGHT)
-    if layer.get("rotate180"):
-        src = src.transpose(Image.ROTATE_180)
-
-    size_mode = layer.get("size", "chord")
-    factor = float(layer.get("factor", 1.0))
-
-    if size_mode == "crop":
-        # Pass-through: the image is a source texture and the quad selects the
-        # region to copy 1:1 (no scaling). This keeps the original artwork at
-        # its native resolution instead of shrinking a whole texture into the
-        # face, which is what "chord" would do.
-        xs = [p[0] for p in pts]
-        ys = [p[1] for p in pts]
-        bx0 = int(round(min(xs)))
-        by0 = int(round(min(ys)))
-        bw = max(4, int(round(max(xs) - min(xs))))
-        bh = max(4, int(round(max(ys) - min(ys))))
-        # The quad lives in canvas pixels; the source image may be smaller
-        # (a 2048 texture on a 4096 canvas), so map the box into image space.
-        kx = src.width / float(width)
-        ky = src.height / float(height)
-        left = max(0, min(int(round(bx0 * kx)), src.width - 1))
-        top = max(0, min(int(round(by0 * ky)), src.height - 1))
-        box_w = max(1, min(int(round(bw * kx)), src.width - left))
-        box_h = max(1, min(int(round(bh * ky)), src.height - top))
-        src = src.crop((left, top, left + box_w, top + box_h)).resize((bw, bh), Image.LANCZOS)
-        x0, y0 = bx0, by0
-        target = src.height
-    elif size_mode == "cover":
-        # Fill the quad's bounding box: scale to cover, crop the overflow.
+    solid = layer.get("fill")
+    if solid and not layer.get("image"):
+        # Solid patch (e.g. covering a roundel): a flat colour over the quad.
+        fill = tuple(max(0, min(255, int(v))) for v in solid) + (255,)
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         bw = max(4, int(round(max(xs) - min(xs))))
         bh = max(4, int(round(max(ys) - min(ys))))
-        scale = max(bw / src.width, bh / src.height)
-        src = src.resize((max(1, int(round(src.width * scale))), max(1, int(round(src.height * scale)))), Image.LANCZOS)
-        x0 = int(round((min(xs) + max(xs)) / 2 - src.width / 2))
-        y0 = int(round((min(ys) + max(ys)) / 2 - src.height / 2))
+        src = Image.new("RGBA", (bw, bh), fill)
+        x0 = int(round(min(xs)))
+        y0 = int(round(min(ys)))
         target = src.height
     else:
-        if size_mode == "chord":
-            target = chord * factor
-        elif size_mode == "height":
-            target = float(layer["height"]) * factor
-        elif size_mode == "quadHeight":
-            ys = [p[1] for p in pts]
-            target = (max(ys) - min(ys)) * factor
-        elif size_mode == "widthAdapt":
+        src = _load_image(os.path.expandvars(str(layer["image"])))
+
+    if not (solid and not layer.get("image")):
+        if layer.get("flip"):
+            src = src.transpose(Image.FLIP_LEFT_RIGHT)
+        if layer.get("rotate180"):
+            src = src.transpose(Image.ROTATE_180)
+
+        size_mode = layer.get("size", "chord")
+        factor = float(layer.get("factor", 1.0))
+
+        if size_mode == "crop":
+            # Pass-through: the image is a source texture and the quad selects the
+            # region to copy 1:1 (no scaling). This keeps the original artwork at
+            # its native resolution instead of shrinking a whole texture into the
+            # face, which is what "chord" would do.
             xs = [p[0] for p in pts]
             ys = [p[1] for p in pts]
-            bw = max(xs) - min(xs)
-            bh = max(ys) - min(ys)
-            target = min(bw / float(layer.get("aspect", 0.62)), bh * 0.9) * factor
+            bx0 = int(round(min(xs)))
+            by0 = int(round(min(ys)))
+            bw = max(4, int(round(max(xs) - min(xs))))
+            bh = max(4, int(round(max(ys) - min(ys))))
+            # The quad lives in canvas pixels; the source image may be smaller
+            # (a 2048 texture on a 4096 canvas), so map the box into image space.
+            kx = src.width / float(width)
+            ky = src.height / float(height)
+            left = max(0, min(int(round(bx0 * kx)), src.width - 1))
+            top = max(0, min(int(round(by0 * ky)), src.height - 1))
+            box_w = max(1, min(int(round(bw * kx)), src.width - left))
+            box_h = max(1, min(int(round(bh * ky)), src.height - top))
+            src = src.crop((left, top, left + box_w, top + box_h)).resize((bw, bh), Image.LANCZOS)
+            x0, y0 = bx0, by0
+            target = src.height
+        elif size_mode == "cover":
+            # Fill the quad's bounding box: scale to cover, crop the overflow.
+            xs = [p[0] for p in pts]
+            ys = [p[1] for p in pts]
+            bw = max(4, int(round(max(xs) - min(xs))))
+            bh = max(4, int(round(max(ys) - min(ys))))
+            scale = max(bw / src.width, bh / src.height)
+            src = src.resize((max(1, int(round(src.width * scale))), max(1, int(round(src.height * scale)))), Image.LANCZOS)
+            x0 = int(round((min(xs) + max(xs)) / 2 - src.width / 2))
+            y0 = int(round((min(ys) + max(ys)) / 2 - src.height / 2))
+            target = src.height
         else:
-            raise ValueError(f"unknown size mode {size_mode!r}")
+            if size_mode == "chord":
+                target = chord * factor
+            elif size_mode == "height":
+                target = float(layer["height"]) * factor
+            elif size_mode == "quadHeight":
+                ys = [p[1] for p in pts]
+                target = (max(ys) - min(ys)) * factor
+            elif size_mode == "widthAdapt":
+                xs = [p[0] for p in pts]
+                ys = [p[1] for p in pts]
+                bw = max(xs) - min(xs)
+                bh = max(ys) - min(ys)
+                target = min(bw / float(layer.get("aspect", 0.62)), bh * 0.9) * factor
+            else:
+                raise ValueError(f"unknown size mode {size_mode!r}")
 
-        target = max(4, int(round(target)))
-        src = src.resize((max(1, int(round(src.width * target / src.height))), target), Image.LANCZOS)
+            target = max(4, int(round(target)))
+            src = src.resize((max(1, int(round(src.width * target / src.height))), target), Image.LANCZOS)
 
-        dx, dy = layer.get("offset", [0, 0])
-        cx = centre[0] + float(dx)
-        cy = centre[1] + float(dy)
-        x0 = int(round(cx - src.width / 2))
-        y0 = int(round(cy - src.height / 2))
+            dx, dy = layer.get("offset", [0, 0])
+            cx = centre[0] + float(dx)
+            cy = centre[1] + float(dy)
+            x0 = int(round(cx - src.width / 2))
+            y0 = int(round(cy - src.height / 2))
 
     mask = Image.new("L", (width, height), 0)
     md = ImageDraw.Draw(mask)
@@ -370,13 +403,14 @@ def render(project_path):
     for index, raw_layer in enumerate(layers):
         layer = dict(raw_layer)
         label = layer.get("id") or f"#{index + 1}"
-        if not layer.get("image"):
-            problems.append(f"layer {label}: image is empty")
+        if not layer.get("image") and not layer.get("fill"):
+            problems.append(f"layer {label}: image is empty and no fill colour")
             continue
-        layer["image"] = resolve(layer["image"])
-        if not os.path.exists(layer["image"]):
-            problems.append(f"layer {label}: image not found: {layer['image']}")
-            continue
+        if layer.get("image"):
+            layer["image"] = resolve(layer["image"])
+            if not os.path.exists(layer["image"]):
+                problems.append(f"layer {label}: image not found: {layer['image']}")
+                continue
         try:
             piece, pos, info = _place(layer, width, height)
         except Exception as error:  # noqa: BLE001 - reported to the caller
