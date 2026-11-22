@@ -640,7 +640,9 @@ window.__ModuleLoader__.load({
           ? [`${dir}/out/${textureName}.png`]
           : kind === 'guide'
             ? [`${dir}/art/uv_guide.png`, `${dir}/out/uv_reference.png`]
-            : [`${dir}/out/uv_reference.png`, String(project.base?.source || ''), String(project.base?.image || '')];
+            : kind === 'normal'
+              ? [String(project.base?.source || project.base?.image || '').replace(/\.(\w+)$/i, '_n.$1')]
+              : [`${dir}/out/uv_reference.png`, String(project.base?.source || ''), String(project.base?.image || '')];
         const usable = candidates.filter(Boolean);
         if (!usable.length) { setStatus('没有记录底图路径'); return; }
         let lastError = '';
@@ -660,8 +662,12 @@ window.__ModuleLoader__.load({
             }
             if (kind === 'themed' && String(project.base?.detail || '') === 'flat') {
               setStatus('主题皮是平涂（细节已抹平），量面请用「原皮」或「导引图」');
+            } else if (kind === 'normal') {
+              setStatus(`已载入法线图（仅看结构，不能当底图）：${rel}`);
+            } else if (kind === 'original') {
+              setStatus(`已载入原皮：${rel}（若模板是纯灰，请用「法线图」或「导引图」量面）`);
             } else {
-              setStatus(`已载入${kind === 'themed' ? '主题皮' : kind === 'guide' ? '导引图' : '原皮'}：${rel}`);
+              setStatus(`已载入导引图：${rel}`);
             }
             return;
           } catch (error) {
@@ -775,6 +781,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', onClick: loadBackground('original'), style: btn(false) }, '原皮'),
           h('button', { type: 'button', onClick: loadBackground('themed'), style: btn(false) }, '主题皮'),
           h('button', { type: 'button', onClick: loadBackground('guide'), style: btn(false) }, '导引图'),
+          h('button', { type: 'button', onClick: loadBackground('normal'), style: btn(false) }, '法线图'),
           h('button', { type: 'button', onClick: startNewFace, style: btn(false) }, '新建面'),
           h('button', { type: 'button', onClick: () => { setPoints([]); setNames([]); setStatus(''); }, style: btn(false) }, '清空点'),
           h('button', { type: 'button', onClick: () => fitView(true), style: btn(false) }, '适应窗口'),
