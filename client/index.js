@@ -18,8 +18,6 @@ window.__ModuleLoader__.load({
     const React = require('react');
     const h = React.createElement;
 
-    const ID = 'dsh-wtskin-project/picker';
-    const KIND = 'wtskin-picker';
     let api = null;
 
     const C = {

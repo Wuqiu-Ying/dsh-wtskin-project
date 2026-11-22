@@ -1,24 +1,5 @@
 # Changelog
 
-## Unreleased
-
-### Added
-
-- `dsh_wtskin_theme`：整机主题换色（原皮 + 渐变调色板），自动移除会盖住底图的全画布图层。
-- 换色观感选项 `detail`：`keep` 保留铆钉/蒙皮线（机械感，默认），`flat` 平滑成纯色块（绘画风）。
-- `dsh_wtskin_finalize`：项目完成时清空 `WTSP/temporary` 参考素材。
-- 取点面板新增「原皮 / 主题皮」底图切换。
-
-- `dsh_wtskin_convert`：TGA/DDS/PNG/JPG → PNG，供"把这个转成 PNG"这类请求使用。
-- `dsh_wtskin_install`：导出物直接装进 `UserSkins/<文件夹>/`，blk 按机型名命名。
-- 面板每面新增「旋转 180°」「弦长占比」；引擎新增 `crop`（源图 1:1）与 `cover`（铺满包围盒）尺寸模式。
-
-### Fixed
-
-- `crop` 按画布坐标裁源图时未换算尺寸比（源图更小时会裁错区域）。
-- 建工程时未写入 `vehicle`，导致安装工具无法确定机型名。
-
-
 ## 3.0.0
 
 v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分。
@@ -29,8 +10,13 @@ v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分�
 - **取点悬浮窗**（`shell.overlay`）：标题栏拖动、右下角缩放、最小化、关闭；不再依赖右栏 tab。
 - `/wtspwds` 打开取点面板；`dsh_wtskin_picker` 成为模型侧触发，两者都经 `WTSP/.open` 时间戳。
 - `WTSP/<载具>_<名称>/` 工程布局：清洗、重名 `-2`、复用根目录、按会话工作区落盘。
-- 面板保存直接写 `project.json`，随后 `followup({content, source})` 唤醒模型。
+- 面板保存写 `project.json` + `faces.json`；保存不唤醒模型，用户手动「提交面数据」后模型 `dsh_wtskin_import` 导入。
 - `/wtskinp` 回归，支持 `vehicle` + `name` 直接建档。
+- **主题换色** `dsh_wtskin_theme`：按渐变调色板重绘原皮；`detail=keep` 保留铆钉细节，`detail=flat` 抹平成纯色块。
+- **`dsh_wtskin_convert`**：TGA / DDS / PNG / JPG → PNG。
+- **`dsh_wtskin_install`**：导出物装进 `UserSkins/<文件夹>/`，blk 按机型名命名。
+- **`dsh_wtskin_finalize`**：项目完成时清空 `WTSP/temporary`。
+- 取点面板：任意 3–64 点多边形、拖点/右键删点、滚轮缩放、中键平移、彩色的边与边名、每面「旋转 180°」「弦长占比」、删除此面、原皮/主题皮底图切换。
 
 ### Changed
 
@@ -43,6 +29,8 @@ v3 的目标：把取点器搬进 DSH，并让它成为「模式」的一部分�
 - 会话 cwd 用 `workingDirectory.ensure(agent)`，不再落到 profile 目录。
 - `followup()` 带消息内容；只 `inject` 不会唤醒模型。
 - 预设子插件行必须 `file://` 绝对 URL（裸包名与 Windows 路径都会 "never started"）。
+- `crop` 按画布坐标裁源图时未换算尺寸比（源图更小时会裁错区域）。
+- 建工程时未写入 `vehicle`，导致安装工具无法确定机型名。
 - `tool-todo` 必填 `allowParallelInProgress`。
 - 服务访问一律 inject 或 `ctx.get`，避免加载期崩溃。
 

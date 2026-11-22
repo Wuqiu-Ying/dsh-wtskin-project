@@ -116,7 +116,7 @@ try {
 
   // ---------------------------------------------------------------- tools
   const { tools, commands, presets } = makeContext();
-  for (const toolName of ['dsh_wtskin_project', 'dsh_wtskin_layer', 'dsh_wtskin_export', 'dsh_wtskin_picker', 'dsh_wtskin_presets']) {
+  for (const toolName of ['dsh_wtskin_project', 'dsh_wtskin_layer', 'dsh_wtskin_export', 'dsh_wtskin_picker', 'dsh_wtskin_presets', 'dsh_wtskin_import', 'dsh_wtskin_install', 'dsh_wtskin_convert', 'dsh_wtskin_theme', 'dsh_wtskin_finalize']) {
     assert(tools.has(toolName), `missing tool ${toolName}`);
   }
   assert(commands.some((c) => c.name === 'wtskin-save'), 'missing the internal wtskin-save command');

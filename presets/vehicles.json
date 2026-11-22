@@ -5,8 +5,14 @@
     "textureName": "q_5l_c",
     "blkName": "q_5l.blk",
     "blkEntries": [
-      { "from": "q_5l_c*", "to": "q_5l_c.dds" },
-      { "from": "q_5l_c_dmg*", "to": "q_5l_c.dds" }
+      {
+        "from": "q_5l_c*",
+        "to": "q_5l_c.dds"
+      },
+      {
+        "from": "q_5l_c_dmg*",
+        "to": "q_5l_c.dds"
+      }
     ],
     "notes": "Optional extras: q_5l_n, q_5l_n_dmg, q_5l_pylon_bomb1..3_c/_n, q_5l_pylon_rocket3_c/_n, q_5_cockpit_c, q_5_cockpit_labels_c"
   },
@@ -16,8 +22,14 @@
     "textureName": "su_27",
     "blkName": "su_27.blk",
     "blkEntries": [
-      { "from": "su_27_c*", "to": "su_27.dds" },
-      { "from": "su_27_n*", "to": "su_27_n.dds" }
+      {
+        "from": "su_27_c*",
+        "to": "su_27.dds"
+      },
+      {
+        "from": "su_27_n*",
+        "to": "su_27_n.dds"
+      }
     ],
     "notes": "Pylons and jet_flame_diamonds can be added as extra replace_tex entries."
   },
@@ -27,9 +39,32 @@
     "textureName": "j_10a",
     "blkName": "j_10a.blk",
     "blkEntries": [
-      { "from": "j_10a_c*", "to": "j_10a.dds" },
-      { "from": "j_10a_n*", "to": "j_10a_n.dds" }
+      {
+        "from": "j_10a_c*",
+        "to": "j_10a.dds"
+      },
+      {
+        "from": "j_10a_n*",
+        "to": "j_10a_n.dds"
+      }
     ],
     "notes": "Aircraft skins use replace_tex only; no rotatable camo."
+  },
+  {
+    "id": "f-104g_china",
+    "name": "F-104G (中系 / Republic of China)",
+    "textureName": "f_104g_china",
+    "blkName": "f-104g_china.blk",
+    "blkEntries": [
+      {
+        "from": "f_104g_c*",
+        "to": "f_104g_china.dds"
+      },
+      {
+        "from": "f_104g_n*",
+        "to": "f_104g_china_n.dds"
+      }
+    ],
+    "notes": "Terrain template texture f_104g_china.tga (2048). The .blk file must be named f-104g_china.blk; normal map is optional."
   }
 ]
