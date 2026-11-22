@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.0.6
+
+### Fixed
+
+- 面板「原皮」按 `out/uv_reference.png` → `base.source` 的顺序加载，不再显示主题色块；
+  导出时引擎会把原始 UV 贴图另存一份 `out/uv_reference.png`。
+- 面板拒绝把 `*_n.tga` / `*_n.dds` 法线贴图当成测量底图（之前会直接显示成绿色）。
+- 新增「导引图」按钮，加载模型生成的 `art/uv_guide.png`。
+- 「主题皮」在 `detail=flat` 时给出提示：平涂已抹掉细节，量面请用原皮/导引图。
+
+
 ## 3.0.5
 
 ### Fixed

@@ -428,8 +428,22 @@ def render(project_path):
     png_path = os.path.join(outdir, name + ".png")
     img.convert("RGB").save(png_path)
 
+    # Clean UV reference for the picker: the original texture without the theme
+    # recolour, so measuring panels never depends on the themed result.
+    if base_cfg.get("source"):
+        try:
+            ref = _load_image(os.path.expandvars(str(base_cfg["source"]))).convert("RGB")
+            ref_path = os.path.join(outdir, "uv_reference.png")
+            ref.save(ref_path)
+            result_uv = ref_path
+        except Exception:  # noqa: BLE001 - the reference is a convenience
+            result_uv = None
+    else:
+        result_uv = None
+
     result = {
         "project": project_path,
+        "uvReference": result_uv,
         "width": width,
         "height": height,
         "png": png_path,

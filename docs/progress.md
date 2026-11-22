@@ -152,7 +152,7 @@ col = np.clip(col * (0.72 + 0.55 * L[..., None]), 0, 1)   # 保留明暗细节
      而不是全局换色；
 4. 字体/文字层目前没有专门支持（只能作为图片层贴）。
 
-### 4. 面板「原皮 / 主题皮」显示不对（待修，先记录）
+### 4. 面板「原皮 / 主题皮」显示不对（✅ 3.0.6 已修）
 
 测试工程：`WTSP/JF-17_LuoTianyi`（`base.source` 指向 `template_jf_17/jf_17.tga`，`base.detail = flat`，`mode = gradient`）。
 

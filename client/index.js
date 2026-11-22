@@ -635,22 +635,40 @@ window.__ModuleLoader__.load({
       const loadBackground = (kind) => async () => {
         const id = sessionId();
         if (!id || !dir || !project) return;
-        const rel = kind === 'themed'
-          ? `${dir}/out/${String(project.output?.textureName || '')}.png`
-          : String(project.base?.source || project.base?.image || '');
-        if (!rel) { setStatus('没有记录底图路径'); return; }
-        try {
-          const payload = unwrap(await api.remote.workspaceFiles.readBytes(id, rel, {}, new AbortController().signal));
-          const got = bytesToUrl(payload, rel);
-          if (got.w && got.h) { applyImage(got.url, got.w, got.h, { name: rel.split('/').pop() }); return; }
-          const probe = new Image();
-          probe.onload = () => applyImage(got.url, probe.naturalWidth, probe.naturalHeight, { name: rel.split('/').pop() });
-          probe.onerror = () => setStatus(`底图解码失败：${rel}`);
-          probe.src = got.url;
-          setStatus(`已载入底图：${rel}`);
-        } catch (error) {
-          setStatus(`载入底图失败：${String((error && error.message) || error)}`);
+        const textureName = String(project.output?.textureName || '');
+        const candidates = kind === 'themed'
+          ? [`${dir}/out/${textureName}.png`]
+          : kind === 'guide'
+            ? [`${dir}/art/uv_guide.png`, `${dir}/out/uv_reference.png`]
+            : [`${dir}/out/uv_reference.png`, String(project.base?.source || ''), String(project.base?.image || '')];
+        const usable = candidates.filter(Boolean);
+        if (!usable.length) { setStatus('没有记录底图路径'); return; }
+        let lastError = '';
+        for (const rel of usable) {
+          try {
+            const payload = unwrap(await api.remote.workspaceFiles.readBytes(id, rel, {}, new AbortController().signal));
+            const got = bytesToUrl(payload, rel);
+            if (!got.w || !got.h) {
+              await new Promise((resolve, reject) => {
+                const probe = new Image();
+                probe.onload = () => { applyImage(got.url, probe.naturalWidth, probe.naturalHeight, { name: rel.split('/').pop() }); resolve(); };
+                probe.onerror = () => { URL.revokeObjectURL(got.url); reject(new Error('decode failed')); };
+                probe.src = got.url;
+              });
+            } else {
+              applyImage(got.url, got.w, got.h, { name: rel.split('/').pop() });
+            }
+            if (kind === 'themed' && String(project.base?.detail || '') === 'flat') {
+              setStatus('主题皮是平涂（细节已抹平），量面请用「原皮」或「导引图」');
+            } else {
+              setStatus(`已载入${kind === 'themed' ? '主题皮' : kind === 'guide' ? '导引图' : '原皮'}：${rel}`);
+            }
+            return;
+          } catch (error) {
+            lastError = String((error && error.message) || error);
+          }
         }
+        setStatus(`载入底图失败：${lastError}`);
       };
 
       const pickImage = () => {
@@ -756,6 +774,7 @@ window.__ModuleLoader__.load({
           h('button', { type: 'button', onClick: pickImage, style: btn(false) }, image ? '换图片' : '选择图片'),
           h('button', { type: 'button', onClick: loadBackground('original'), style: btn(false) }, '原皮'),
           h('button', { type: 'button', onClick: loadBackground('themed'), style: btn(false) }, '主题皮'),
+          h('button', { type: 'button', onClick: loadBackground('guide'), style: btn(false) }, '导引图'),
           h('button', { type: 'button', onClick: startNewFace, style: btn(false) }, '新建面'),
           h('button', { type: 'button', onClick: () => { setPoints([]); setNames([]); setStatus(''); }, style: btn(false) }, '清空点'),
           h('button', { type: 'button', onClick: () => fitView(true), style: btn(false) }, '适应窗口'),

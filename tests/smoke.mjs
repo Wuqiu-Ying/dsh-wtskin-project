@@ -382,6 +382,7 @@ try {
   const themedProject = JSON.parse(await readFile(path.join(themeDir, 'project.json'), 'utf8'));
   assert(themedProject.base.source === detailFile && themedProject.layers.length === 0, 'theme did not persist');
   await tools.get('dsh_wtskin_export').execute({ dir: themeDir });
+  await readFile(path.join(themeDir, 'out', 'uv_reference.png'));
   const themePng = path.join(themeDir, 'out', 'theme_c.png');
   const themedPixel = pixel(themePng, 128, 128);
   assert(themedPixel[2] > themedPixel[0] + 20, `recolour should be blue-dominant: ${themedPixel}`);
