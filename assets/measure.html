@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>图片像素坐标读取器</title>
+<style>
+  :root {
+    --bg: #0a1120;
+    --panel: #0f1a2d;
+    --panel-2: #142138;
+    --line: rgba(148, 163, 184, 0.18);
+    --text: #e8eef8;
+    --muted: #93a4bd;
+    --accent: #22d3ee;
+    --accent-strong: #0ea5e9;
+    --marker: #f59e0b;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    margin: 0;
+  }
+
+  body {
+    overflow: hidden;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  [hidden] { display: none !important; }
+
+  button { font: inherit; }
+
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .topbar {
+    z-index: 3;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 14px 20px;
+    padding: 14px 24px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(12, 20, 35, 0.92);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+  }
+
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 190px;
+  }
+
+  .brand-mark {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    flex: 0 0 auto;
+    border-radius: 11px;
+    color: #06121f;
+    background: linear-gradient(135deg, #67e8f9, #0ea5e9);
+    box-shadow: 0 6px 20px rgba(14, 165, 233, 0.3);
+  }
+
+  .brand-mark svg { width: 22px; height: 22px; }
+
+  .brand h1 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .brand p {
+    margin: 3px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .readouts {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+  }
+
+  .readout {
+    min-width: 150px;
+    padding: 7px 12px 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: rgba(20, 33, 56, 0.8);
+  }
+
+  .readout-label {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--muted);
+    font-size: 10.5px;
+    letter-spacing: 0.04em;
+  }
+
+  .readout-value {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    min-height: 21px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 14.5px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .readout-resolution { color: #c7f9ff; }
+
+  .axis {
+    color: var(--muted);
+    font-size: 10.5px;
+    font-weight: 700;
+  }
+
+  .coord-number {
+    min-width: 34px;
+    color: var(--accent);
+  }
+
+  .coord-gap {
+    color: rgba(147, 164, 189, 0.45);
+    font-size: 12px;
+  }
+
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 15px;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    cursor: pointer;
+    font-size: 13.5px;
+    font-weight: 650;
+    line-height: 1;
+    transition: background 140ms ease, border-color 140ms ease, filter 140ms ease, opacity 140ms ease;
+  }
+
+  .btn svg { width: 16px; height: 16px; }
+
+  .btn-primary {
+    color: #04131f;
+    background: linear-gradient(135deg, #67e8f9, #22d3ee);
+    box-shadow: 0 5px 18px rgba(34, 211, 238, 0.2);
+  }
+
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  .btn-ghost {
+    color: var(--text);
+    border-color: var(--line);
+    background: transparent;
+  }
+
+  .btn-ghost:hover { border-color: rgba(148, 163, 184, 0.4); background: rgba(148, 163, 184, 0.08); }
+
+  .btn:disabled {
+    opacity: 0.38;
+    cursor: not-allowed;
+    filter: none;
+  }
+
+  .btn:focus-visible,
+  .dropzone:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+  }
+
+  .file-input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .workspace {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    background:
+      radial-gradient(1000px 520px at 50% -12%, rgba(56, 189, 248, 0.1), transparent 62%),
+      linear-gradient(rgba(148, 163, 184, 0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, 0.045) 1px, transparent 1px);
+    background-size: auto, 32px 32px, 32px 32px;
+  }
+
+  .workspace::after {
+    content: "松开鼠标即可载入图片";
+    position: absolute;
+    inset: 16px;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed rgba(34, 211, 238, 0.8);
+    border-radius: 18px;
+    background: rgba(7, 14, 26, 0.78);
+    color: #c8f8ff;
+    font-size: 17px;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+
+  body.is-dragging .workspace::after { opacity: 1; }
+
+  .dropzone {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 24px;
+    padding: 40px 24px;
+    border: 1.5px dashed rgba(148, 163, 184, 0.32);
+    border-radius: 18px;
+    background: rgba(15, 26, 45, 0.25);
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
+  }
+
+  .dropzone:hover,
+  body.is-dragging .dropzone {
+    border-color: rgba(34, 211, 238, 0.65);
+    background: rgba(34, 211, 238, 0.045);
+  }
+
+  .dropzone.is-over {
+    border-color: var(--accent);
+    background: rgba(34, 211, 238, 0.08);
+  }
+
+  .drop-icon {
+    display: grid;
+    place-items: center;
+    width: 74px;
+    height: 74px;
+    margin-bottom: 22px;
+    border: 1px solid rgba(34, 211, 238, 0.22);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(34, 211, 238, 0.12), rgba(14, 165, 233, 0.04));
+    color: var(--accent);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .drop-icon svg { width: 34px; height: 34px; }
+
+  .dropzone h2 {
+    margin: 0 0 8px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+
+  .dropzone p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.75;
+  }
+
+  .dropzone .btn { margin-top: 22px; }
+
+  .drop-note {
+    margin-top: 16px !important;
+    font-size: 12px !important;
+    color: rgba(147, 164, 189, 0.72) !important;
+  }
+
+  .drop-note kbd {
+    padding: 1px 5px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: rgba(148, 163, 184, 0.08);
+    color: #cbd5e1;
+    font-family: inherit;
+    font-size: 11px;
+  }
+
+  .viewer {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .viewport {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 28px;
+    overflow: auto;
+  }
+
+  .image-frame {
+    position: relative;
+    flex: 0 0 auto;
+    background-color: #f8fafc;
+    background-image:
+      linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+      linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+      linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+    background-size: 16px 16px;
+    box-shadow:
+      0 0 0 1px rgba(148, 163, 184, 0.28),
+      0 26px 80px rgba(0, 0, 0, 0.55);
+    cursor: crosshair;
+    line-height: 0;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  #image {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: none;
+    max-height: none;
+    border-radius: 2px;
+    -webkit-user-drag: none;
+    user-drag: none;
+  }
+
+  .overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: visible;
+    pointer-events: none;
+  }
+
+  .guide {
+    position: absolute;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0.85;
+  }
+
+  .guide-x {
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 1px;
+    background: repeating-linear-gradient(
+      to right,
+      rgba(14, 165, 233, 0.95) 0 5px,
+      rgba(255, 255, 255, 0.42) 5px 7px,
+      transparent 7px 10px
+    );
+    filter: drop-shadow(0 0 2px rgba(2, 132, 199, 0.7));
+    transform: translateY(-0.5px);
+  }
+
+  .guide-y {
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 1px;
+    background: repeating-linear-gradient(
+      to bottom,
+      rgba(14, 165, 233, 0.95) 0 5px,
+      rgba(255, 255, 255, 0.42) 5px 7px,
+      transparent 7px 10px
+    );
+    filter: drop-shadow(0 0 2px rgba(2, 132, 199, 0.7));
+    transform: translateX(-0.5px);
+  }
+
+  .marker {
+    position: absolute;
+    z-index: 2;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+  }
+
+  .marker-dot {
+    position: absolute;
+    width: 13px;
+    height: 13px;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    background: var(--marker);
+    box-shadow:
+      0 0 0 1.5px rgba(2, 6, 23, 0.75),
+      0 0 14px rgba(245, 158, 11, 0.85);
+    transform: translate(-50%, -50%);
+  }
+
+  .marker-tag {
+    position: absolute;
+    top: 11px;
+    left: 14px;
+    padding: 4px 8px;
+    border: 1px solid rgba(34, 211, 238, 0.48);
+    border-radius: 6px;
+    background: rgba(3, 10, 22, 0.9);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.38);
+    color: #a5f3fc;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 12px;
+    font-weight: 650;
+    line-height: 1.25;
+    white-space: nowrap;
+    backdrop-filter: blur(4px);
+  }
+
+  .marker.flip-x .marker-tag {
+    right: 14px;
+    left: auto;
+  }
+
+  .marker.flip-y .marker-tag {
+    top: auto;
+    bottom: 11px;
+  }
+
+  .statusbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-height: 46px;
+    padding: 8px 24px;
+    border-top: 1px solid var(--line);
+    background: rgba(12, 20, 35, 0.9);
+    font-size: 12px;
+  }
+
+  .status-name {
+    max-width: 42vw;
+    overflow: hidden;
+    color: #dbe7f5;
+    font-size: 13px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .status-dot { color: rgba(147, 164, 189, 0.5); }
+
+  .status-meta {
+    color: var(--muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 11.5px;
+  }
+
+  .status-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-left: auto;
+    color: var(--muted);
+  }
+
+  .status-hint::before {
+    content: "";
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px rgba(34, 211, 238, 0.8);
+  }
+
+  .status-hint strong {
+    color: #bae6fd;
+    font-weight: 650;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  }
+
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    z-index: 20;
+    max-width: min(90vw, 520px);
+    padding: 10px 16px;
+    border: 1px solid rgba(34, 211, 238, 0.35);
+    border-radius: 9px;
+    background: rgba(3, 10, 22, 0.95);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    color: #dffaff;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transform: translate(-50%, 12px);
+    transition: opacity 180ms ease, transform 180ms ease;
+  }
+
+  .toast.show {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+
+  @media (max-width: 940px) {
+    .topbar {
+      gap: 10px 14px;
+      padding: 12px 16px;
+    }
+
+    .brand { min-width: 0; }
+    .brand p { display: none; }
+
+    .readouts {
+      order: 3;
+      width: 100%;
+      margin-left: 0;
+    }
+
+    .readout {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .toolbar { margin-left: auto; }
+
+    .viewport { padding: 16px; }
+    .dropzone { margin: 16px; padding: 28px 18px; }
+    .statusbar { padding: 8px 16px; }
+    .status-hint { width: 100%; margin-left: 0; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      scroll-behavior: auto !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2.5"></rect>
+            <circle cx="8.5" cy="8.5" r="1.6"></circle>
+            <path d="m21 15-5-5L5 21"></path>
+          </svg>
+        </div>
+        <div>
+          <h1>图片像素坐标</h1>
+          <p>上传图片，点击任意位置取点</p>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="readout">
+          <span class="readout-label">图片分辨率</span>
+          <span class="readout-value readout-resolution" id="resolutionValue">—</span>
+        </div>
+        <div class="readout" aria-live="polite">
+          <span class="readout-label">点击坐标（左上角为原点）</span>
+          <span class="readout-value">
+            <span class="axis">X</span><span class="coord-number" id="coordX">—</span>
+            <span class="coord-gap">·</span>
+            <span class="axis">Y</span><span class="coord-number" id="coordY">—</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="toolbar">
+        <button class="btn btn-primary" id="pickTop" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 16V4"></path>
+            <path d="m7 9 5-5 5 5"></path>
+            <path d="M20 15v4a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-4"></path>
+          </svg>
+          选择图片
+        </button>
+        <button class="btn btn-ghost" id="clearBtn" type="button" disabled>清除</button>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="dropzone" id="dropzone" tabindex="0" aria-label="上传图片区域">
+        <div class="drop-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2.5"></rect>
+            <circle cx="8.5" cy="8.5" r="1.6"></circle>
+            <path d="m21 15-5-5L5 21"></path>
+          </svg>
+        </div>
+        <h2>把图片拖到这里</h2>
+        <p>或点击选择本地图片<br>支持 PNG、JPG、GIF、WebP、BMP 等常见格式</p>
+        <button class="btn btn-primary" id="pickEmpty" type="button">选择图片</button>
+        <p class="drop-note">也可以直接按 <kbd>Ctrl</kbd> + <kbd>V</kbd> 粘贴图片</p>
+      </section>
+
+      <section class="viewer" id="viewer" hidden>
+        <div class="viewport" id="viewport">
+          <div class="image-frame" id="imageFrame">
+            <img id="image" alt="" draggable="false">
+            <div class="overlay" aria-hidden="true">
+              <div class="guide guide-x" id="guideX" hidden></div>
+              <div class="guide guide-y" id="guideY" hidden></div>
+              <div class="marker" id="marker" hidden>
+                <span class="marker-dot"></span>
+                <span class="marker-tag" id="markerTag">(0, 0)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="statusbar">
+          <span class="status-name" id="fileName"></span>
+          <span class="status-dot" aria-hidden="true">·</span>
+          <span class="status-meta" id="fileMeta"></span>
+          <span class="status-hint">坐标原点在图片左上角 <strong>(0, 0)</strong>，数值从 0 开始</span>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <input class="file-input" id="fileInput" type="file" accept="image/*">
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const els = {
+    fileInput: document.getElementById("fileInput"),
+    pickTop: document.getElementById("pickTop"),
+    pickEmpty: document.getElementById("pickEmpty"),
+    clearBtn: document.getElementById("clearBtn"),
+    dropzone: document.getElementById("dropzone"),
+    viewer: document.getElementById("viewer"),
+    viewport: document.getElementById("viewport"),
+    imageFrame: document.getElementById("imageFrame"),
+    image: document.getElementById("image"),
+    guideX: document.getElementById("guideX"),
+    guideY: document.getElementById("guideY"),
+    marker: document.getElementById("marker"),
+    markerTag: document.getElementById("markerTag"),
+    resolution: document.getElementById("resolutionValue"),
+    coordX: document.getElementById("coordX"),
+    coordY: document.getElementById("coordY"),
+    fileName: document.getElementById("fileName"),
+    fileMeta: document.getElementById("fileMeta"),
+    toast: document.getElementById("toast"),
+  };
+
+  const state = {
+    objectUrl: null,
+    width: 0,
+    height: 0,
+    loadId: 0,
+    point: null,
+  };
+
+  let toastTimer = 0;
+  let fitRaf = 0;
+
+  function showToast(message) {
+    window.clearTimeout(toastTimer);
+    els.toast.textContent = message;
+    els.toast.classList.add("show");
+    toastTimer = window.setTimeout(() => {
+      els.toast.classList.remove("show");
+    }, 2800);
+  }
+
+  function formatBytes(bytes) {
+    if (!Number.isFinite(bytes) || bytes <= 0) return "大小未知";
+    const units = ["B", "KB", "MB", "GB"];
+    let value = bytes;
+    let index = 0;
+    while (value >= 1024 && index < units.length - 1) {
+      value /= 1024;
+      index += 1;
+    }
+    const digits = index === 0 || value >= 100 ? 0 : 1;
+    return value.toFixed(digits) + " " + units[index];
+  }
+
+  function fileTypeLabel(file) {
+    const subtype = (file.type.split("/")[1] || "").toLowerCase();
+    if (subtype === "svg+xml") return "SVG";
+    if (subtype === "jpeg") return "JPG";
+    return subtype ? subtype.toUpperCase() : "图片";
+  }
+
+  function looksLikeImage(file) {
+    if (file.type) return file.type.startsWith("image/");
+    return /\.(avif|bmp|gif|ico|jpe?g|png|svg|tiff?|webp)$/i.test(file.name || "");
+  }
+
+  function fitImage() {
+    fitRaf = 0;
+    if (!state.width || !state.height || els.viewer.hidden) return;
+
+    const rect = els.viewport.getBoundingClientRect();
+    const style = window.getComputedStyle(els.viewport);
+    const padX = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const padY = (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0);
+    const availableWidth = Math.max(32, rect.width - padX);
+    const availableHeight = Math.max(32, rect.height - padY);
+
+    const scale = Math.min(1, availableWidth / state.width, availableHeight / state.height);
+    const displayWidth = Math.max(1, state.width * scale);
+    const displayHeight = Math.max(1, state.height * scale);
+
+    els.image.style.width = displayWidth + "px";
+    els.image.style.height = displayHeight + "px";
+  }
+
+  function scheduleFit() {
+    if (fitRaf) cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(fitImage);
+  }
+
+  function resetPoint() {
+    state.point = null;
+    els.marker.hidden = true;
+    els.guideX.hidden = true;
+    els.guideY.hidden = true;
+    els.markerTag.textContent = "(0, 0)";
+    els.coordX.textContent = "—";
+    els.coordY.textContent = "—";
+  }
+
+  function showPoint(x, y) {
+    state.point = { x, y };
+
+    const centerX = (x + 0.5) / state.width;
+    const centerY = (y + 0.5) / state.height;
+    const percentX = centerX * 100;
+    const percentY = centerY * 100;
+
+    els.marker.style.left = percentX + "%";
+    els.marker.style.top = percentY + "%";
+    els.markerTag.textContent = "(" + x + ", " + y + ")";
+    els.marker.classList.toggle("flip-x", centerX > 0.66);
+    els.marker.classList.toggle("flip-y", centerY > 0.76);
+
+    els.guideX.style.top = percentY + "%";
+    els.guideY.style.left = percentX + "%";
+
+    els.marker.hidden = false;
+    els.guideX.hidden = false;
+    els.guideY.hidden = false;
+
+    els.coordX.textContent = String(x);
+    els.coordY.textContent = String(y);
+  }
+
+  function handleImageClick(event) {
+    if (!state.width || !state.height) return;
+
+    const rect = els.image.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    if (localX < 0 || localY < 0 || localX >= rect.width || localY >= rect.height) return;
+
+    const x = Math.min(state.width - 1, Math.floor((localX / rect.width) * state.width));
+    const y = Math.min(state.height - 1, Math.floor((localY / rect.height) * state.height));
+    showPoint(x, y);
+  }
+
+  function loadFile(file) {
+    if (!file) return;
+    if (!looksLikeImage(file)) {
+      showToast("请选择图片文件（PNG、JPG、GIF、WebP 等）");
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    const probe = new Image();
+    const loadId = ++state.loadId;
+
+    probe.onload = () => {
+      if (loadId !== state.loadId) {
+        URL.revokeObjectURL(objectUrl);
+        return;
+      }
+
+      const width = probe.naturalWidth;
+      const height = probe.naturalHeight;
+      if (!width || !height) {
+        URL.revokeObjectURL(objectUrl);
+        showToast("无法读取这张图片的尺寸，请换一张试试");
+        return;
+      }
+
+      const previousUrl = state.objectUrl;
+      state.objectUrl = objectUrl;
+      state.width = width;
+      state.height = height;
+
+      els.image.style.width = "";
+      els.image.style.height = "";
+      els.image.src = objectUrl;
+      els.image.alt = "已上传图片，尺寸 " + width + " × " + height + " 像素";
+
+      els.viewer.hidden = false;
+      els.dropzone.hidden = true;
+      els.clearBtn.disabled = false;
+
+      els.resolution.textContent = width + " × " + height + " px";
+      const fileName = file.name || "粘贴的图片";
+      els.fileName.textContent = fileName;
+      els.fileMeta.textContent = fileTypeLabel(file) + " · " + formatBytes(file.size);
+
+      resetPoint();
+      els.fileInput.value = "";
+
+      if (previousUrl) URL.revokeObjectURL(previousUrl);
+
+      scheduleFit();
+      requestAnimationFrame(scheduleFit);
+    };
+
+    probe.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      if (loadId === state.loadId) {
+        showToast("图片读取失败，请换一个文件试试");
+      }
+    };
+
+    probe.src = objectUrl;
+  }
+
+  function clearImage() {
+    state.loadId += 1;
+    state.width = 0;
+    state.height = 0;
+
+    if (state.objectUrl) {
+      URL.revokeObjectURL(state.objectUrl);
+      state.objectUrl = null;
+    }
+
+    els.image.removeAttribute("src");
+    els.image.alt = "";
+    els.image.style.width = "";
+    els.image.style.height = "";
+    resetPoint();
+
+    els.viewer.hidden = true;
+    els.dropzone.hidden = false;
+    els.clearBtn.disabled = true;
+    els.resolution.textContent = "—";
+    els.fileName.textContent = "";
+    els.fileMeta.textContent = "";
+    els.fileInput.value = "";
+  }
+
+  function openFilePicker() {
+    els.fileInput.click();
+  }
+
+  els.pickTop.addEventListener("click", openFilePicker);
+  els.pickEmpty.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openFilePicker();
+  });
+  els.clearBtn.addEventListener("click", clearImage);
+
+  els.dropzone.addEventListener("click", (event) => {
+    if (event.target.closest("button")) return;
+    openFilePicker();
+  });
+
+  els.dropzone.addEventListener("keydown", (event) => {
+    if (event.target !== els.dropzone) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openFilePicker();
+    }
+  });
+
+  els.fileInput.addEventListener("change", () => {
+    const file = els.fileInput.files && els.fileInput.files[0];
+    if (file) loadFile(file);
+    els.fileInput.value = "";
+  });
+
+  els.imageFrame.addEventListener("click", handleImageClick);
+
+  const resizeObserver = new ResizeObserver(scheduleFit);
+  resizeObserver.observe(els.viewport);
+  window.addEventListener("resize", scheduleFit);
+
+  function hasFilePayload(event) {
+    const types = event.dataTransfer && event.dataTransfer.types;
+    return !!types && Array.prototype.indexOf.call(types, "Files") !== -1;
+  }
+
+  window.addEventListener("dragenter", (event) => {
+    if (!hasFilePayload(event)) return;
+    event.preventDefault();
+    document.body.classList.add("is-dragging");
+    els.dropzone.classList.add("is-over");
+  });
+
+  window.addEventListener("dragover", (event) => {
+    if (!hasFilePayload(event)) return;
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  });
+
+  window.addEventListener("dragleave", (event) => {
+    if (event.relatedTarget !== null) return;
+    document.body.classList.remove("is-dragging");
+    els.dropzone.classList.remove("is-over");
+  });
+
+  window.addEventListener("drop", (event) => {
+    if (!event.dataTransfer) return;
+    event.preventDefault();
+    document.body.classList.remove("is-dragging");
+    els.dropzone.classList.remove("is-over");
+
+    const files = Array.from(event.dataTransfer.files || []);
+    if (!files.length) return;
+    const imageFile = files.find((file) => file.type.startsWith("image/")) || files[0];
+    loadFile(imageFile);
+  });
+
+  document.addEventListener("paste", (event) => {
+    const items = Array.from((event.clipboardData && event.clipboardData.items) || []);
+    const imageItem = items.find((item) => item.type.startsWith("image/"));
+    if (!imageItem) return;
+
+    const file = imageItem.getAsFile();
+    if (!file) return;
+
+    event.preventDefault();
+    let name = file.name;
+    if (!name) {
+      const extension = imageItem.type.split("/")[1] || "png";
+      name = "粘贴的图片." + (extension === "jpeg" ? "jpg" : extension);
+    }
+    loadFile(new File([file], name, { type: file.type }));
+  });
+})();
+</script>
+
+<style id="wt-quad-style">
+  .wt-quad-panel{position:fixed;right:18px;bottom:18px;z-index:60;width:310px;padding:12px 14px;
+    border:1px solid rgba(148,163,184,.25);border-radius:12px;background:rgba(15,26,45,.96);
+    color:#e8eef8;font:12.5px/1.5 "Segoe UI","Microsoft YaHei",system-ui,sans-serif;
+    box-shadow:0 18px 40px rgba(0,0,0,.45);backdrop-filter:blur(6px)}
+  .wt-quad-panel h3{margin:0 0 6px;font-size:13px;letter-spacing:.02em;display:flex;justify-content:space-between}
+  .wt-quad-panel h3 span{color:#93a4bd;font-weight:400}
+  .wt-quad-panel .wt-row{display:flex;align-items:center;gap:6px;margin:6px 0}
+  .wt-quad-panel .wt-row label{color:#93a4bd;white-space:nowrap}
+  .wt-quad-panel input[type=number]{width:72px;padding:3px 6px;border-radius:7px;border:1px solid rgba(148,163,184,.3);
+    background:#0b1526;color:#e8eef8;font:inherit}
+  .wt-quad-panel pre{margin:6px 0;max-height:76px;overflow:auto;padding:7px 9px;border-radius:8px;
+    background:#08111f;color:#7dd3fc;font:11.5px/1.5 ui-monospace,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+  .wt-quad-panel button{border:1px solid rgba(148,163,184,.3);border-radius:8px;padding:5px 10px;
+    background:#142138;color:#e8eef8;cursor:pointer;font:inherit}
+  .wt-quad-panel button:hover{background:#1b2c47}
+  .wt-quad-panel button.primary{background:#0ea5e9;border-color:#0ea5e9;color:#04121f;font-weight:600}
+  .wt-quad-panel button:disabled{opacity:.45;cursor:not-allowed}
+  .wt-quad-actions{display:flex;gap:6px;margin-top:8px}
+  .wt-quad-status{margin-top:6px;color:#5eead4;min-height:16px}
+  .wt-quad-svg{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+  .wt-quad-svg polygon{fill:rgba(34,211,238,.18);stroke:#22d3ee;stroke-width:2;vector-effect:non-scaling-stroke}
+  .wt-quad-svg circle{fill:#f59e0b;stroke:#111;stroke-width:1;vector-effect:non-scaling-stroke}
+  .wt-quad-svg text{fill:#fff;font:12px ui-monospace,Consolas,monospace;vector-effect:non-scaling-stroke}
+</style>
+<script id="wt-quad-script">
+(() => {
+  "use strict";
+  const params = new URLSearchParams(location.search);
+  const targetDir = params.get("dir") || "";
+  const targetId = params.get("id") || "";
+  const defaultScale = Number(params.get("scale") || 1) || 1;
+
+  const frame = document.getElementById("imageFrame");
+  const img = document.getElementById("image");
+  if (!frame || !img) return;
+
+  const NS = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(NS, "svg");
+  svg.setAttribute("class", "wt-quad-svg");
+  frame.appendChild(svg);
+
+  const panel = document.createElement("div");
+  panel.className = "wt-quad-panel";
+  panel.innerHTML = [
+    '<h3>四边形取点 <span id="wtq-count">0 / 4</span></h3>',
+    '<div class="wt-row"><label>缩放 ×</label><input id="wtq-scale" type="number" step="0.01" min="0.01" value="' + defaultScale + '">',
+    '<span style="color:#93a4bd">输出坐标乘数</span></div>',
+    '<pre id="wtq-json">[]</pre>',
+    '<div class="wt-quad-actions">',
+    '<button id="wtq-copy">复制</button>',
+    '<button id="wtq-redo">重选</button>',
+    '<button id="wtq-save" class="primary" ' + (targetDir ? '' : 'disabled title="需由插件启动"') + '>保存到工程</button>',
+    '</div>',
+    '<div class="wt-quad-status" id="wtq-status"></div>'
+  ].join('');
+  document.body.appendChild(panel);
+
+  const els = {
+    count: panel.querySelector("#wtq-count"),
+    scale: panel.querySelector("#wtq-scale"),
+    json: panel.querySelector("#wtq-json"),
+    copy: panel.querySelector("#wtq-copy"),
+    redo: panel.querySelector("#wtq-redo"),
+    save: panel.querySelector("#wtq-save"),
+    status: panel.querySelector("#wtq-status"),
+  };
+
+  const state = { points: [], mode: false };
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "btn btn-ghost";
+  toggle.textContent = "四点框选";
+  toggle.addEventListener("click", () => {
+    state.mode = !state.mode;
+    toggle.classList.toggle("btn-primary", state.mode);
+    toggle.textContent = state.mode ? "框选中…" : "四点框选";
+    els.status.textContent = state.mode ? "在图片上依次点击 4 个点" : "";
+  });
+  const toolbar = document.querySelector(".toolbar");
+  if (toolbar) toolbar.appendChild(toggle);
+
+  function scaleValue() {
+    const v = Number(els.scale.value);
+    return Number.isFinite(v) && v > 0 ? v : 1;
+  }
+
+  function scaledPoints() {
+    const s = scaleValue();
+    return state.points.map(([x, y]) => [Math.round(x * s), Math.round(y * s)]);
+  }
+
+  function redraw() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const w = img.naturalWidth, h = img.naturalHeight;
+    svg.setAttribute("viewBox", "0 0 " + w + " " + h);
+    if (!state.points.length) return;
+    if (state.points.length > 1) {
+      const poly = document.createElementNS(NS, "polygon");
+      poly.setAttribute("points", state.points.map(p => p.join(",")).join(" "));
+      svg.appendChild(poly);
+    }
+    state.points.forEach(([x, y], i) => {
+      const c = document.createElementNS(NS, "circle");
+      c.setAttribute("cx", x); c.setAttribute("cy", y); c.setAttribute("r", Math.max(3, w / 160));
+      svg.appendChild(c);
+      const t = document.createElementNS(NS, "text");
+      t.setAttribute("x", x + w / 120); t.setAttribute("y", y - w / 160);
+      t.textContent = String(i + 1);
+      svg.appendChild(t);
+    });
+  }
+
+  function refresh() {
+    els.count.textContent = state.points.length + " / 4";
+    els.json.textContent = JSON.stringify(scaledPoints());
+    redraw();
+  }
+
+  img.addEventListener("load", () => { state.points = []; refresh(); });
+
+  img.addEventListener("click", (event) => {
+    if (!state.mode || !img.naturalWidth) return;
+    const rect = img.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const x = Math.min(img.naturalWidth - 1, Math.floor((event.clientX - rect.left) / rect.width * img.naturalWidth));
+    const y = Math.min(img.naturalHeight - 1, Math.floor((event.clientY - rect.top) / rect.height * img.naturalHeight));
+    if (state.points.length >= 4) state.points = [];
+    state.points.push([x, y]);
+    if (state.points.length === 4) {
+      els.status.textContent = "4 点完成，可复制或保存";
+      state.mode = false;
+      toggle.textContent = "四点框选";
+      toggle.classList.remove("btn-primary");
+    }
+    refresh();
+  });
+
+  els.scale.addEventListener("input", refresh);
+  els.redo.addEventListener("click", () => { state.points = []; refresh(); els.status.textContent = ""; });
+  els.copy.addEventListener("click", async () => {
+    if (state.points.length !== 4) { els.status.textContent = "先点满 4 个点"; return; }
+    const text = JSON.stringify(scaledPoints());
+    try { await navigator.clipboard.writeText(text); els.status.textContent = "已复制"; }
+    catch { els.json.textContent = text; els.status.textContent = "复制失败，请手动选中"; }
+  });
+  els.save.addEventListener("click", async () => {
+    if (!targetDir) { els.status.textContent = "需由插件启动才能保存"; return; }
+    if (state.points.length !== 4) { els.status.textContent = "先点满 4 个点"; return; }
+    els.status.textContent = "保存中…";
+    try {
+      const res = await fetch("/api/quad", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dir: targetDir,
+          id: targetId,
+          image: params.get("image") || "",
+          scale: scaleValue(),
+          quad: scaledPoints(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      els.status.textContent = "已保存到 " + targetId;
+    } catch (error) {
+      els.status.textContent = "保存失败：" + error.message;
+    }
+  });
+
+  refresh();
+})();
+</script>
+</body>
+</html>
