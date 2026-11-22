@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.0.2
+
+### Changed
+
+- 去掉 `peerDependencies` / `peerDependenciesMeta`：插件**不再声明任何宿主包版本**。
+  宿主工具按运行时可用性解析（app.asar 路径 / 动态 import），缺失时使用内置回退，
+  避免插件与 DSH 版本互相绑定。
+
+
 ## 3.0.1
 
 ### Fixed

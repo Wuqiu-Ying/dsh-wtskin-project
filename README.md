@@ -97,6 +97,12 @@ dsh plugin --profile desktop add link:D:/path/to/dsh-wtskin-project-02
 
 装完重启 DSH：工具、`/wtskinp`、`/wtspwds` 与模式预设都在启动时注册。
 
+## 与 DSH 版本的关系
+
+插件**不声明、不安装任何 DSH 宿主包**（没有 `dependencies` / `peerDependencies`）：
+`dsh-tools`、`dsh-tool-*` 等在运行时按可用性解析（app.asar 或宿主提供），缺失时走内置回退。
+因此升级 DSH 不会因为插件锁定的旧版本而崩。
+
 ## Python 环境
 
 引擎需要 Python 3 + Pillow + numpy。查找顺序：工具参数 `pythonPath` → 插件配置 `pythonPath` → 环境变量 `DSH_PYTHON` → `python`。
